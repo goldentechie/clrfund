@@ -64,16 +64,16 @@ yarn test
 
 #### Start the frontend app in development mode (hot-code reloading, error reporting, etc.)
 ```
-yarn start:node
+yarn ganache
 ```
 and in a new terminal
 ```
-yarn start:dev
+yarn dev
 ```
 
 #### Start the frontend sans a local blockchain
 ```
-yarn start:web
+yarn web
 ```
 
 #### Lint the files
