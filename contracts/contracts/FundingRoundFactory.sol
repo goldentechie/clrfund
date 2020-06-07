@@ -18,6 +18,9 @@ import './FundingRound.sol';
 contract FundingRoundFactory is Ownable, MACIPubKey {
   using SafeERC20 for IERC20;
 
+  // Constants
+  uint256 private constant MACI_MAX_VOTE_OPTIONS = 625;
+
   // State
   mapping(address => string) public recipients;
   uint256 private recipientCount = 0;
@@ -72,7 +75,7 @@ contract FundingRoundFactory is Ownable, MACIPubKey {
     require(_fundingAddress != address(0), 'Factory: Recipient address is zero');
     require(bytes(_name).length != 0, 'Factory: Recipient name is empty string');
     require(bytes(recipients[_fundingAddress]).length == 0, 'Factory: Recipient already registered');
-    require(recipientCount < maciFactory.maxVoteOptions(), 'Factory: Recipient limit reached');
+    require(recipientCount < MACI_MAX_VOTE_OPTIONS, 'Factory: Recipient limit reached');
     recipients[_fundingAddress] = _name;
     recipientCount += 1;
     emit RecipientAdded(_fundingAddress, _name);
@@ -90,36 +93,17 @@ contract FundingRoundFactory is Ownable, MACIPubKey {
     return previousRound;
   }
 
-  function setMaciParameters(
-    uint8 _stateTreeDepth,
-    uint8 _messageTreeDepth,
-    uint8 _voteOptionTreeDepth,
-    uint8 _tallyBatchSize,
-    uint8 _messageBatchSize,
-    uint256 _signUpDuration,
-    uint256 _votingDuration
-  )
-    public
-    onlyOwner
-  {
-    maciFactory.setMaciParameters(
-      _stateTreeDepth,
-      _messageTreeDepth,
-      _voteOptionTreeDepth,
-      _tallyBatchSize,
-      _messageBatchSize,
-      _signUpDuration,
-      _votingDuration
-    );
-  }
-
   function deployMaci(
+    uint256 _signUpDuration,
+    uint256 _votingDuration,
     PubKey memory _coordinatorPubKey
   )
     public
     onlyOwner
   {
     maciFactory.deployMaci(
+      _signUpDuration,
+      _votingDuration,
       _coordinatorPubKey
     );
   }
