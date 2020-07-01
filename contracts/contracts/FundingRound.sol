@@ -4,18 +4,19 @@ pragma experimental ABIEncoderV2;
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 
-import 'maci/contracts/sol/MACI.sol';
-import 'maci/contracts/sol/MACIPubKey.sol';
+import 'maci-contracts/sol/MACI.sol';
+import 'maci-contracts/sol/MACISharedObjs.sol';
 
 import './IRecipientRegistry.sol';
 
-contract FundingRound is Ownable, MACIPubKey {
+contract FundingRound is Ownable, MACISharedObjs {
   using SafeERC20 for IERC20;
 
   uint256 public contributorCount;
   uint256 public contributionDeadline;
   uint256 public poolSize;
   bool public isFinalized = false;
+  bool public isCancelled = false;
 
   PubKey public coordinatorPubKey;
   MACI public maci;
@@ -26,6 +27,7 @@ contract FundingRound is Ownable, MACIPubKey {
   
   event FundsClaimed(address _recipient);
   event NewContribution(address indexed _sender, uint256 _amount);
+  event FundsWithdrawn(address indexed _contributor);
 
   /**
     * @dev Sets round parameters (they can only be set once during construction).
@@ -115,6 +117,19 @@ contract FundingRound is Ownable, MACIPubKey {
   }
 
   /**
+    * @dev Withdraw contributed funds from the pool.
+    */
+  function withdraw()
+    public
+  {
+    require(isCancelled, 'FundingRound: Round not cancelled');
+    uint256 amount = contributors[msg.sender];
+    require(amount > 0, 'FundingRound: Nothing to withdraw');
+    nativeToken.transfer(msg.sender, amount);
+    emit FundsWithdrawn(msg.sender);
+  }
+
+  /**
     * @dev Allow recipients to claim funds after vote tally was done.
     */
   function finalize()
@@ -127,5 +142,17 @@ contract FundingRound is Ownable, MACIPubKey {
     require(maci.numSignUps() == 0 || !maci.hasUntalliedStateLeaves(), 'FundingRound: Votes has not been tallied');
     isFinalized = true;
     poolSize = nativeToken.balanceOf(address(this));
+  }
+
+  /**
+    * @dev Cancel funding round.
+    */
+  function cancel()
+    public
+    onlyOwner
+  {
+    require(!isFinalized, 'FundingRound: Already finalized');
+    isFinalized = true;
+    isCancelled = true;
   }
 }

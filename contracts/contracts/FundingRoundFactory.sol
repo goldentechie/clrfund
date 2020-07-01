@@ -5,14 +5,14 @@ import '@openzeppelin/contracts/ownership/Ownable.sol';
 import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 
-import 'maci/contracts/sol/MACI.sol';
-import 'maci/contracts/sol/MACIPubKey.sol';
+import 'maci-contracts/sol/MACI.sol';
+import 'maci-contracts/sol/MACISharedObjs.sol';
 
 import './IRecipientRegistry.sol';
 import './MACIFactory.sol';
 import './FundingRound.sol';
 
-contract FundingRoundFactory is Ownable, MACIPubKey, IRecipientRegistry {
+contract FundingRoundFactory is Ownable, MACISharedObjs, IRecipientRegistry {
   using SafeERC20 for IERC20;
 
   // State
@@ -196,6 +196,22 @@ contract FundingRoundFactory is Ownable, MACIPubKey, IRecipientRegistry {
     * @param _coordinator Coordinator's address.
     * @param _coordinatorPubKey Coordinator's public key.
     */
+  function _setCoordinator(
+    address _coordinator,
+    PubKey memory _coordinatorPubKey
+  )
+    internal
+  {
+    coordinator = _coordinator;
+    coordinatorPubKey = _coordinatorPubKey;
+    FundingRound currentRound = getCurrentRound();
+    if (address(currentRound) != address(0) && !currentRound.isFinalized()) {
+      currentRound.cancel();
+      emit RoundFinalized(address(currentRound));
+    }
+    emit CoordinatorTransferred(_coordinator);
+  }
+
   function setCoordinator(
     address _coordinator,
     PubKey memory _coordinatorPubKey
@@ -203,17 +219,13 @@ contract FundingRoundFactory is Ownable, MACIPubKey, IRecipientRegistry {
     public
     onlyOwner
   {
-    coordinator = _coordinator;
-    coordinatorPubKey = _coordinatorPubKey;
-    emit CoordinatorTransferred(_coordinator);
-    // TODO: cancel current funding round
+    _setCoordinator(_coordinator, _coordinatorPubKey);
   }
 
   function coordinatorQuit() public onlyCoordinator {
-    coordinator = address(0);
     // The fact that they quit is obvious from
     // the address being 0x0
-    emit CoordinatorTransferred(coordinator);
+    _setCoordinator(address(0), PubKey(0, 0));
   }
 
   modifier onlyCoordinator() {
