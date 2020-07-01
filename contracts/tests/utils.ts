@@ -31,14 +31,14 @@ export async function getEventArg(
 
 export class MaciParameters {
 
-  // Defaults
-  stateTreeDepth = 10;
-  messageTreeDepth = 10;
+  // Defaults for tests
+  stateTreeDepth = 4;
+  messageTreeDepth = 4;
   voteOptionTreeDepth = 2;
-  tallyBatchSize = 4;
-  messageBatchSize = 4;
-  signUpDuration = 7 * 86400;
-  votingDuration = 7 * 86400;
+  tallyBatchSize = 2;
+  messageBatchSize = 2;
+  signUpDuration = 3600;
+  votingDuration = 3600;
 
   constructor(parameters: {[name: string]: number} = {}) {
     for (const [name, value] of Object.entries(parameters)) {
