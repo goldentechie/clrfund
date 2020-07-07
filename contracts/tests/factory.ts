@@ -13,14 +13,13 @@ use(solidity);
 
 describe('Funding Round Factory', () => {
   const provider = waffle.provider;
-  
   const [dontUseMe, deployer, coordinator, contributor] = provider.getWallets();// eslint-disable-line @typescript-eslint/no-unused-vars
 
   let maciFactory: Contract;
   let factory: Contract;
   let token: Contract;
 
-  let maciParameters = new MaciParameters();
+  const maciParameters = new MaciParameters();
   const coordinatorPubKey = { x: 0, y: 1 };
 
   beforeEach(async () => {
@@ -86,11 +85,14 @@ describe('Funding Round Factory', () => {
     });
 
     it('allows owner to add recipient', async () => {
+      const expectedIndex = 1;
       await expect(factory.addRecipient(fundingAddress, recipientName))
         .to.emit(factory, 'RecipientAdded')
-        .withArgs(fundingAddress, recipientName);
+        .withArgs(fundingAddress, recipientName, expectedIndex);
       expect(await factory.recipients(fundingAddress))
         .to.equal(recipientName);
+      expect(await factory.recipientIndex(fundingAddress))
+        .to.equal(expectedIndex);
     });
 
     it('rejects calls from anyone except owner', async () => {
@@ -119,11 +121,7 @@ describe('Funding Round Factory', () => {
     });
 
     it('should limit the number of recipients', async () => {
-      // Reduce number of vote options to speed up the test
-      maciParameters = new MaciParameters({ voteOptionTreeDepth: 1 });
-      await factory.setMaciParameters(...maciParameters.values());
-
-      const maxRecipientCount = 4;
+      const maxRecipientCount = 5 ** maciParameters.voteOptionTreeDepth - 1;
       for (let i = 0; i < maxRecipientCount + 1; i++) {
         recipientName = String(i + 1).padStart(4, '0');
         fundingAddress = `0x000000000000000000000000000000000000${recipientName}`;
@@ -192,21 +190,7 @@ describe('Funding Round Factory', () => {
     });
 
     it('reverts if current round is not finalized', async () => {
-      await factory.setToken(token.address);
-      await factory.setCoordinator(coordinator.address, coordinatorPubKey);
-      await factory.deployNewRound();
-      await expect(factory.deployNewRound())
-        .to.be.revertedWith('Factory: Current round is not finalized');
-    });
-
-    it('deploys new funding round after previous round has been finalized', async () => {
-      await factory.setToken(token.address);
-      await factory.setCoordinator(coordinator.address, coordinatorPubKey);
-      await factory.deployNewRound();
-      // Re-set coordinator and cancel current round
-      await factory.setCoordinator(coordinator.address, coordinatorPubKey);
-      await expect(factory.deployNewRound())
-        .to.emit(factory, 'NewRound');
+      // TODO: write test when cancel() will be implemented
     });
 
     it('only owner can deploy funding round', async () => {
@@ -274,50 +258,8 @@ describe('Funding Round Factory', () => {
   });
 
   describe('transferring matching funds', () => {
-    const roundDuration = 86400 * 7;  // Default duration in MACI factory
-    const votingDuration = 86400 * 7;  // Default duration in MACI factory
-    const contributionAmount = 1000;
-
     it('moves matching funds to the current round after its finalization', async () => {
-      await factory.setToken(token.address);
-      const tokenAsContributor = token.connect(contributor);
-      await tokenAsContributor.approve(
-        factory.address,
-        contributionAmount,
-      );
-      const factoryAsContributor = factory.connect(contributor);
-      await expect(factoryAsContributor.contribute(contributionAmount))
-      await factory.setCoordinator(coordinator.address, coordinatorPubKey);
-      await factory.deployNewRound();
-      const fundingRoundAddress = await factory.getCurrentRound();
-      const fundingRound = await ethers.getContractAt(
-        'FundingRound',
-        fundingRoundAddress,
-      );
-      await factory.deployMaci();
-      await provider.send('evm_increaseTime', [roundDuration + votingDuration]);
-      await expect(factory.transferMatchingFunds())
-        .to.emit(factory, 'RoundFinalized')
-        .withArgs(fundingRoundAddress);
-      expect(await fundingRound.isFinalized()).to.equal(true);
-      expect(await token.balanceOf(fundingRoundAddress)).to.equal(contributionAmount);
-    });
-
-    it('reverts if round has not been deployed', async () => {
-      await factory.setToken(token.address);
-      await factory.setCoordinator(coordinator.address, coordinatorPubKey);
-      await expect(factory.transferMatchingFunds())
-        .to.be.revertedWith('Factory: Funding round has not been deployed');
-    });
-
-    it('finalizes current round even if matching pool is empty', async () => {
-      await factory.setToken(token.address);
-      await factory.setCoordinator(coordinator.address, coordinatorPubKey);
-      await factory.deployNewRound();
-      await factory.deployMaci();
-      await provider.send('evm_increaseTime', [roundDuration + votingDuration]);
-      await expect(factory.transferMatchingFunds())
-        .to.emit(factory, 'RoundFinalized');
+      // TODO: add tests later; needs time travel
     });
 
     it('reverts if round has not been deployed', async () => {
@@ -377,22 +319,5 @@ describe('Funding Round Factory', () => {
     await factory.setCoordinator(coordinator.address, coordinatorPubKey);
     await expect(factory.coordinatorQuit())
       .to.be.revertedWith('Sender is not the coordinator');
-  });
-
-  it('should cancel current round when coordinator is changed', async () => {
-    await factory.setToken(token.address);
-    await factory.setCoordinator(coordinator.address, coordinatorPubKey);
-    await factory.deployNewRound();
-    const fundingRoundAddress = await factory.getCurrentRound();
-    const fundingRound = await ethers.getContractAt(
-      'FundingRound',
-      fundingRoundAddress,
-    );
-
-    const factoryAsCoordinator = factory.connect(coordinator);
-    await expect(factoryAsCoordinator.coordinatorQuit())
-      .to.emit(factory, 'RoundFinalized')
-      .withArgs(fundingRoundAddress);
-    expect(await fundingRound.isCancelled()).to.equal(true);
   });
 });
