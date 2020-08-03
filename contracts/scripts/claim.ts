@@ -9,13 +9,15 @@ async function main() {
   // Finalize the round
   const state = JSON.parse(fs.readFileSync('state.json').toString())
   const factory = await ethers.getContractAt('FundingRoundFactory', state.factory)
+  await factory.transferMatchingFunds()
+  // Verify totals
+  const fundingRound = await ethers.getContractAt('FundingRound', state.fundingRound)
   const tally = JSON.parse(fs.readFileSync('tally.json').toString())
   const totalSpent = parseInt(tally.totalVoiceCredits.spent)
   const totalSpentSalt = tally.totalVoiceCredits.salt
-  await factory.transferMatchingFunds(totalSpent, totalSpentSalt)
+  await fundingRound.verifyTotals(totalSpent, totalSpentSalt)
   console.log('Round finalized, totals verified.')
 
-  const fundingRound = await ethers.getContractAt('FundingRound', state.fundingRound)
   const treeDepth =  2
   // Claim funds
   for (const recipientIndex of [1, 2]) {

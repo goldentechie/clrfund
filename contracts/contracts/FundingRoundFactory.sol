@@ -1,4 +1,4 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.5.8;
 pragma experimental ABIEncoderV2;
 
 import '@openzeppelin/contracts/ownership/Ownable.sol';
@@ -218,13 +218,8 @@ contract FundingRoundFactory is Ownable, MACISharedObjs, IVerifiedUserRegistry, 
 
   /**
     * @dev Transfer funds from matching pool to current funding round and finalize it.
-    * @param _totalSpent Total amount of spent voice credits.
-    * @param _totalSpentSalt The salt.
     */
-  function transferMatchingFunds(
-    uint256 _totalSpent,
-    uint256 _totalSpentSalt
-  )
+  function transferMatchingFunds()
     public
     onlyOwner
   {
@@ -234,7 +229,7 @@ contract FundingRoundFactory is Ownable, MACISharedObjs, IVerifiedUserRegistry, 
     if (amount > 0) {
       nativeToken.transfer(address(currentRound), amount);
     }
-    currentRound.finalize(_totalSpent, _totalSpentSalt);
+    currentRound.finalize();
     emit RoundFinalized(address(currentRound));
   }
 
