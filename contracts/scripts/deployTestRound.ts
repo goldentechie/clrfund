@@ -59,8 +59,10 @@ async function main() {
   await factory.addUser(contributor2.getAddress())
 
   // Add dummy recipients
-  await factory.addRecipient(recipient1.getAddress(), 'Recipient 1');
-  await factory.addRecipient(recipient2.getAddress(), 'Recipient 2');
+  const metadataRecipient1 = { name: "Recipient 1", description: "Description 1", imageHash: "Ipfs imageHash 1" };
+  const metadataRecipient2 = { name: "Recipient 2", description: "Description 2", imageHash: "Ipfs imageHash 2" };
+  await factory.addRecipient(recipient1.getAddress(), JSON.stringify(metadataRecipient1));
+  await factory.addRecipient(recipient2.getAddress(), JSON.stringify(metadataRecipient2));
 
   // Deploy new funding round and MACI
   await factory.deployNewRound();
