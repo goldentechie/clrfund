@@ -13,8 +13,4 @@ module.exports = {
     mocha: true,
     node: true,
   },
-  rules: {
-    '@typescript-eslint/explicit-function-return-type': 'off',
-    '@typescript-eslint/no-explicit-any': 'off',
-  },
 };
