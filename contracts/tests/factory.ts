@@ -14,7 +14,7 @@ use(solidity);
 
 describe('Funding Round Factory', () => {
   const provider = waffle.provider;
-  const [dontUseMe, deployer, coordinator, contributor] = provider.getWallets();// eslint-disable-line @typescript-eslint/no-unused-vars
+  const [, deployer, coordinator, contributor] = provider.getWallets()
 
   let maciFactory: Contract;
   let factory: Contract;
@@ -126,57 +126,57 @@ describe('Funding Round Factory', () => {
 
   describe('adding recipients', () => {
     let fundingAddress: string;
-    let metadata: string;
+    let recipientName: string;
     beforeEach(() => {
       fundingAddress = '0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045';
-      metadata = JSON.stringify({ name: "Recipient 1", description: "Description 1", imageHash: "Ipfs imageHash 1" });
+      recipientName = 'test';
     });
 
     it('allows owner to add recipient', async () => {
       const expectedIndex = 1;
-      await expect(factory.addRecipient(fundingAddress, metadata))
+      await expect(factory.addRecipient(fundingAddress, recipientName))
         .to.emit(factory, 'RecipientAdded')
-        .withArgs(fundingAddress, metadata, expectedIndex);
+        .withArgs(fundingAddress, recipientName, expectedIndex);
+      expect(await factory.recipients(fundingAddress))
+        .to.equal(recipientName);
       expect(await factory.getRecipientIndex(fundingAddress))
         .to.equal(expectedIndex);
     });
 
     it('rejects calls from anyone except owner', async () => {
       const contributorFactory = factory.connect(contributor);
-      await expect(contributorFactory.addRecipient(fundingAddress, metadata))
+      await expect(contributorFactory.addRecipient(fundingAddress, recipientName))
         .to.be.revertedWith('Ownable: caller is not the owner');
     });
 
     it('should not accept zero-address', async () => {
       fundingAddress = ZERO_ADDRESS;
-      await expect(factory.addRecipient(fundingAddress, metadata))
+      await expect(factory.addRecipient(fundingAddress, recipientName))
         .to.be.revertedWith('Factory: Recipient address is zero');
     });
 
-    it('should not accept empty string as metadata', async () => {
-      metadata = ''
-      await expect(factory.addRecipient(fundingAddress, metadata))
-        .to.be.revertedWith('Factory: Metadata info is empty string');
+    it('should not accept empty string as name', async () => {
+      recipientName = ''
+      await expect(factory.addRecipient(fundingAddress, recipientName))
+        .to.be.revertedWith('Factory: Recipient name is empty string');
     });
 
     it('should not accept already registered address', async () => {
-      await factory.addRecipient(fundingAddress, metadata);
-      metadata = JSON.stringify({ name: "Recipient 2", description: "Description 2", imageHash: "Ipfs imageHash 2" })
-      await expect(factory.addRecipient(fundingAddress, metadata))
+      await factory.addRecipient(fundingAddress, recipientName);
+      recipientName = 'test-2';
+      await expect(factory.addRecipient(fundingAddress, recipientName))
         .to.be.revertedWith('Factory: Recipient already registered');
     });
 
     it('should limit the number of recipients', async () => {
       const maxRecipientCount = 5 ** maciParameters.voteOptionTreeDepth - 1;
-      let recipientName;
       for (let i = 0; i < maxRecipientCount + 1; i++) {
-        recipientName = String(i + 1).padStart(4, '0')
-        metadata = JSON.stringify({ name: recipientName, description: "Description", imageHash: "Ipfs imageHash" })
+        recipientName = String(i + 1).padStart(4, '0');
         fundingAddress = `0x000000000000000000000000000000000000${recipientName}`;
         if (i < maxRecipientCount) {
-          await factory.addRecipient(fundingAddress, metadata);
+          await factory.addRecipient(fundingAddress, recipientName);
         } else {
-          await expect(factory.addRecipient(fundingAddress, metadata))
+          await expect(factory.addRecipient(fundingAddress, recipientName))
             .to.be.revertedWith('Factory: Recipient limit reached');
         }
       }
