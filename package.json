@@ -6,7 +6,11 @@
   "workspaces": { 
     "packages": ["contracts", "vue-app"],
     "nohoist": [
-      "**/@nomiclabs/**"
+      "**/@nomiclabs/**",
+      "**/typescript",
+      "**/ts-node",
+      "**/@vue/**",
+      "**/@openzeppelin/contracts"
     ]
   },
   "scripts": {

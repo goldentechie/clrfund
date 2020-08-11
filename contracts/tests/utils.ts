@@ -5,6 +5,7 @@ import { Keypair, PubKey, Command, Message } from 'maci-domainobjs';
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 export const UNIT = BigNumber.from(10).pow(BigNumber.from(18))
+export const VOICE_CREDIT_FACTOR = BigNumber.from(10).pow(4 + 18 - 9)
 
 export function bnSqrt(a: BigNumber): BigNumber {
   // Take square root from a big number
@@ -80,9 +81,10 @@ export class MaciParameters {
 export function createMessage(
   userStateIndex: number,
   userKeypair: Keypair,
+  newUserKeypair: Keypair | null,
   coordinatorPubKey: PubKey,
-  voteOptionIndex: number,
-  voiceCredits: BigNumber,
+  voteOptionIndex: number | null,
+  voiceCredits: BigNumber | null,
   nonce: number,
   salt?: number,
 ): [Message, PubKey] {
@@ -90,11 +92,11 @@ export function createMessage(
   if (!salt) {
     salt = genRandomSalt();
   }
-  const quadraticVoteWeight = bnSqrt(voiceCredits)
+  const quadraticVoteWeight = voiceCredits ? bnSqrt(voiceCredits) : 0
   const command = new Command(
     bigInt(userStateIndex),
-    userKeypair.pubKey,
-    bigInt(voteOptionIndex),
+    newUserKeypair ? newUserKeypair.pubKey : userKeypair.pubKey,
+    bigInt(voteOptionIndex || 0),
     bigInt(quadraticVoteWeight),
     bigInt(nonce),
     bigInt(salt),

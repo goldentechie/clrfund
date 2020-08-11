@@ -8,7 +8,7 @@ import { genRandomSalt } from 'maci-crypto';
 import { Keypair } from 'maci-domainobjs';
 
 import { deployMaciFactory } from '../scripts/helpers';
-import { ZERO_ADDRESS, UNIT, bnSqrt, getEventArg, getGasUsage, createMessage } from './utils'
+import { ZERO_ADDRESS, UNIT, VOICE_CREDIT_FACTOR, bnSqrt, getEventArg, getGasUsage, createMessage } from './utils'
 import IVerifiedUserRegistryArtifact from '../build/contracts/IVerifiedUserRegistry.json';
 import IRecipientRegistryArtifact from '../build/contracts/IRecipientRegistry.json';
 import MACIArtifact from '../build/contracts/MACI.json';
@@ -44,7 +44,7 @@ describe('Funding Round', () => {
   }
 
   beforeEach(async () => {
-    const tokenInitialSupply = UNIT.mul(10000)
+    const tokenInitialSupply = UNIT.mul(1000000)
     const Token = await ethers.getContractFactory('AnyOldERC20Token', deployer);
     token = await Token.deploy(tokenInitialSupply);
     await token.transfer(contributor.address, tokenInitialSupply.div(4))
@@ -117,20 +117,21 @@ describe('Funding Round', () => {
         fundingRound.address,
         contributionAmount,
       );
+      const expectedVoiceCredits = contributionAmount.div(VOICE_CREDIT_FACTOR)
       await expect(fundingRoundAsContributor.contribute(userPubKey, contributionAmount))
         .to.emit(fundingRound, 'NewContribution')
         .withArgs(contributor.address, contributionAmount)
         .to.emit(maci, 'SignUp')
         // We use [] to skip argument matching, otherwise it will fail
         // Possibly related: https://github.com/EthWorks/Waffle/issues/245
-        .withArgs([], 1, contributionAmount);
+        .withArgs([], 1, expectedVoiceCredits)
       expect(await token.balanceOf(fundingRound.address))
         .to.equal(contributionAmount);
 
       expect(await fundingRound.getVoiceCredits(
         fundingRound.address,
         encodedContributorAddress,
-      )).to.equal(contributionAmount);
+      )).to.equal(expectedVoiceCredits)
     });
 
     it('rejects contributions if MACI has not been linked to a round', async () => {
@@ -166,6 +167,17 @@ describe('Funding Round', () => {
       await expect(fundingRoundAsContributor.contribute(userPubKey, 0))
         .to.be.revertedWith('FundingRound: Contribution amount must be greater than zero');
     });
+
+    it('rejects contributions that are too large', async () => {
+      await fundingRound.setMaci(maci.address)
+      const contributionAmount = UNIT.mul(10001)
+      await tokenAsContributor.approve(
+        fundingRound.address,
+        contributionAmount,
+      )
+      await expect(fundingRoundAsContributor.contribute(userPubKey, contributionAmount))
+        .to.be.revertedWith('FundingRound: Contribution amount is too large')
+    })
 
     it('allows to contribute only once per round', async () => {
       await fundingRound.setMaci(maci.address);
@@ -232,6 +244,8 @@ describe('Funding Round', () => {
     const singleVote = UNIT.mul(4)
     let fundingRoundAsContributor: Contract;
     let userStateIndex: number;
+    let recipientIndex = 1
+    let nonce = 1
 
     beforeEach(async () => {
       await fundingRound.setMaci(maci.address);
@@ -249,12 +263,10 @@ describe('Funding Round', () => {
       await provider.send('evm_increaseTime', [signUpDuration]);
     });
 
-    it('publishes a single message', async () => {
-      const recipientIndex = 1;
-      const nonce = 1;
+    it('submits a vote', async () => {
       const [message, encPubKey] = createMessage(
         userStateIndex,
-        userKeypair,
+        userKeypair, null,
         coordinatorPubKey,
         recipientIndex, singleVote, nonce,
       );
@@ -267,15 +279,67 @@ describe('Funding Round', () => {
       expect(await getGasUsage(publishTx)).lessThan(800000);
     });
 
+    it('submits a key-changing message', async () => {
+      const newUserKeypair = new Keypair()
+      const [message, encPubKey] = createMessage(
+        userStateIndex,
+        userKeypair, newUserKeypair,
+        coordinatorPubKey,
+        null, null, nonce,
+      )
+      await maci.publishMessage(
+        message.asContractParam(),
+        encPubKey.asContractParam(),
+      )
+    })
+
+    it('submits an invalid vote', async () => {
+      const newUserKeypair = new Keypair()
+      const [message1, encPubKey1] = createMessage(
+        userStateIndex,
+        userKeypair, newUserKeypair,
+        coordinatorPubKey,
+        null, null, nonce,
+      )
+      await maci.publishMessage(
+        message1.asContractParam(),
+        encPubKey1.asContractParam(),
+      )
+      const [message2, encPubKey2] = createMessage(
+        userStateIndex,
+        userKeypair, null,
+        coordinatorPubKey,
+        recipientIndex, singleVote, nonce + 1,
+      )
+      await maci.publishMessage(
+        message2.asContractParam(),
+        encPubKey2.asContractParam(),
+      )
+    })
+
+    it('submits a vote for invalid vote option', async () => {
+      recipientIndex = 999
+      const [message, encPubKey] = createMessage(
+        userStateIndex,
+        userKeypair, null,
+        coordinatorPubKey,
+        recipientIndex, singleVote, nonce,
+      )
+      await maci.publishMessage(
+        message.asContractParam(),
+        encPubKey.asContractParam(),
+      )
+    })
+
     it('submits a batch of messages', async () => {
       const messages = [];
       const encPubKeys = [];
       const numMessages = 3;
       for (let recipientIndex = 1; recipientIndex < numMessages + 1; recipientIndex++) {
-        const nonce = recipientIndex;
+        nonce = recipientIndex
         const [message, encPubKey] = createMessage(
           userStateIndex,
-          userKeypair,
+          userKeypair, null,
           coordinatorPubKey,
           recipientIndex, singleVote, nonce,
         );
@@ -288,11 +352,12 @@ describe('Funding Round', () => {
   });
 
   describe('finalizing round', () => {
-    const matchingPoolSize = UNIT.mul(1000)
-    const totalSpent = UNIT.mul(100)
+    const matchingPoolSize = UNIT.mul(10000)
+    const totalContributions = UNIT.mul(1000)
+    const totalSpent = totalContributions.div(VOICE_CREDIT_FACTOR)
     const totalSpentSalt = genRandomSalt().toString()
     const totalVotes = bnSqrt(totalSpent)
-    expect(totalVotes.toNumber()).to.equal(10 * 10 ** 9)
+    expect(totalVotes.toNumber()).to.equal(10000)
 
     beforeEach(async () => {
       maci = await deployMaciMock()
@@ -302,7 +367,7 @@ describe('Funding Round', () => {
 
       await token.connect(contributor).approve(
         fundingRound.address,
-        totalSpent,
+        totalContributions,
       )
     })
 
@@ -310,7 +375,7 @@ describe('Funding Round', () => {
       await fundingRound.setMaci(maci.address);
       await fundingRound.connect(contributor).contribute(
         userKeypair.pubKey.asContractParam(),
-        totalSpent,
+        totalContributions,
       )
       await provider.send('evm_increaseTime', [signUpDuration + votingDuration]);
       await token.transfer(fundingRound.address, matchingPoolSize)
@@ -326,7 +391,7 @@ describe('Funding Round', () => {
       await fundingRound.setMaci(maci.address)
       await fundingRound.connect(contributor).contribute(
         userKeypair.pubKey.asContractParam(),
-        totalSpent,
+        totalContributions,
       )
       await provider.send('evm_increaseTime', [signUpDuration + votingDuration])
 
@@ -339,7 +404,7 @@ describe('Funding Round', () => {
       await fundingRound.setMaci(maci.address);
       await fundingRound.connect(contributor).contribute(
         userKeypair.pubKey.asContractParam(),
-        totalSpent,
+        totalContributions,
       )
       await provider.send('evm_increaseTime', [signUpDuration + votingDuration]);
       await token.transfer(fundingRound.address, matchingPoolSize)
@@ -359,7 +424,7 @@ describe('Funding Round', () => {
       await fundingRound.setMaci(maci.address);
       await fundingRound.connect(contributor).contribute(
         userKeypair.pubKey.asContractParam(),
-        totalSpent,
+        totalContributions,
       )
       await provider.send('evm_increaseTime', [signUpDuration]);
 
@@ -371,7 +436,7 @@ describe('Funding Round', () => {
       await fundingRound.setMaci(maci.address)
       await fundingRound.connect(contributor).contribute(
         userKeypair.pubKey.asContractParam(),
-        totalSpent,
+        totalContributions,
       )
       await provider.send('evm_increaseTime', [signUpDuration + votingDuration])
       await maci.mock.hasUntalliedStateLeaves.returns(true)
@@ -384,7 +449,7 @@ describe('Funding Round', () => {
       await fundingRound.setMaci(maci.address)
       await fundingRound.connect(contributor).contribute(
         userKeypair.pubKey.asContractParam(),
-        totalSpent,
+        totalContributions,
       )
       await provider.send('evm_increaseTime', [signUpDuration + votingDuration])
       await token.transfer(fundingRound.address, matchingPoolSize)
@@ -398,7 +463,7 @@ describe('Funding Round', () => {
       await fundingRound.setMaci(maci.address)
       await fundingRound.connect(contributor).contribute(
         userKeypair.pubKey.asContractParam(),
-        totalSpent,
+        totalContributions,
       )
       await provider.send('evm_increaseTime', [signUpDuration + votingDuration])
       await token.transfer(fundingRound.address, matchingPoolSize)
@@ -412,7 +477,7 @@ describe('Funding Round', () => {
       await fundingRound.setMaci(maci.address);
       await fundingRound.connect(contributor).contribute(
         userKeypair.pubKey.asContractParam(),
-        totalSpent,
+        totalContributions,
       )
       await provider.send('evm_increaseTime', [signUpDuration + votingDuration]);
 
@@ -430,7 +495,7 @@ describe('Funding Round', () => {
     });
 
     it('reverts if round has been finalized already', async () => {
-      const totalSpent = UNIT.mul(100)
+      const totalSpent = UNIT.mul(1000).div(VOICE_CREDIT_FACTOR)
       const totalSpentSalt = genRandomSalt().toString()
       maci = await deployMaciMock()
       await fundingRound.setMaci(maci.address);
@@ -497,8 +562,9 @@ describe('Funding Round', () => {
   });
 
   describe('claiming funds', () => {
-    const matchingPoolSize = UNIT.mul(1000)
-    const totalSpent = UNIT.mul(100)
+    const matchingPoolSize = UNIT.mul(10000)
+    const totalContributions = UNIT.mul(1000)
+    const totalSpent = totalContributions.div(VOICE_CREDIT_FACTOR)
     const totalSpentSalt = genRandomSalt().toString();
     const totalVotes = bnSqrt(totalSpent)
     const recipientIndex = 3;
@@ -511,7 +577,7 @@ describe('Funding Round', () => {
       [[0]],
       genRandomSalt().toString(),
     ];
-    const expectedClaimableAmount = matchingPoolSize.div(2).add(totalSpent.div(2))
+    const expectedClaimableAmount = matchingPoolSize.div(2).add(totalContributions.div(2))
     let fundingRoundAsRecipient: Contract;
     let fundingRoundAsContributor: Contract;
 
@@ -529,12 +595,12 @@ describe('Funding Round', () => {
       const tokenAsContributor = token.connect(contributor);
       await tokenAsContributor.approve(
         fundingRound.address,
-        totalSpent,
+        totalContributions,
       );
       fundingRoundAsContributor = fundingRound.connect(contributor);
       await fundingRoundAsContributor.contribute(
         userKeypair.pubKey.asContractParam(),
-        totalSpent,
+        totalContributions,
       );
       await provider.send('evm_increaseTime', [signUpDuration + votingDuration]);
       fundingRoundAsRecipient = fundingRound.connect(recipient);
