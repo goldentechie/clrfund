@@ -2,7 +2,7 @@ pragma solidity ^0.5.8;
 pragma experimental ABIEncoderV2;
 
 import '@openzeppelin/contracts/ownership/Ownable.sol';
-import '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
+import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 
 import 'maci-contracts/sol/MACI.sol';
@@ -14,20 +14,15 @@ import './IVerifiedUserRegistry.sol';
 import './IRecipientRegistry.sol';
 
 contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoiceCreditProxy {
-  using SafeERC20 for ERC20Detailed;
-
-  // Constants
-  uint256 private constant MAX_VOICE_CREDITS = 10 ** 9;  // MACI allows 2 ** 32 voice credits max
-  uint256 private constant MAX_CONTRIBUTION_AMOUNT = 10 ** 4;  // In tokens
+  using SafeERC20 for IERC20;
 
   // Structs
   struct ContributorStatus {
-    uint256 voiceCredits;
+    uint256 amount;
     bool isRegistered;
   }
 
   // State
-  uint256 private voiceCreditFactor;
   uint256 public contributorCount;
   uint256 public contributionDeadline;
   uint256 public matchingPoolSize;
@@ -37,7 +32,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
 
   PubKey public coordinatorPubKey;
   MACI public maci;
-  ERC20Detailed public nativeToken;
+  IERC20 public nativeToken;
   IVerifiedUserRegistry public verifiedUserRegistry;
   IRecipientRegistry public recipientRegistry;
 
@@ -58,7 +53,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     * @param _coordinatorPubKey Coordinator's public key.
     */
   constructor(
-    ERC20Detailed _nativeToken,
+    IERC20 _nativeToken,
     IVerifiedUserRegistry _verifiedUserRegistry,
     IRecipientRegistry _recipientRegistry,
     uint256 _duration,
@@ -67,8 +62,6 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     public
   {
     nativeToken = _nativeToken;
-    voiceCreditFactor = (MAX_CONTRIBUTION_AMOUNT * uint256(10) ** nativeToken.decimals()) / MAX_VOICE_CREDITS;
-    voiceCreditFactor = voiceCreditFactor > 0 ? voiceCreditFactor : 1;
     verifiedUserRegistry = _verifiedUserRegistry;
     recipientRegistry = _recipientRegistry;
     contributionDeadline = now + _duration;
@@ -118,12 +111,10 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     require(now < contributionDeadline, 'FundingRound: Contribution period ended');
     require(!isFinalized, 'FundingRound: Round finalized');
     require(amount > 0, 'FundingRound: Contribution amount must be greater than zero');
-    require(amount <= MAX_VOICE_CREDITS * voiceCreditFactor, 'FundingRound: Contribution amount is too large');
-    require(contributors[msg.sender].voiceCredits == 0, 'FundingRound: Already contributed');
-    uint256 voiceCredits = amount / voiceCreditFactor;
-    contributors[msg.sender] = ContributorStatus(voiceCredits, false);
+    require(contributors[msg.sender].amount == 0, 'FundingRound: Already contributed');
+    contributors[msg.sender] = ContributorStatus(amount, false);
     contributorCount += 1;
-    bytes memory signUpGatekeeperData = abi.encode(msg.sender, voiceCredits);
+    bytes memory signUpGatekeeperData = abi.encode(msg.sender, amount);
     bytes memory initialVoiceCreditProxyData = abi.encode(msg.sender);
     nativeToken.transferFrom(msg.sender, address(this), amount);
     maci.signUp(
@@ -149,7 +140,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     address user = abi.decode(_data, (address));
     bool verified = verifiedUserRegistry.isVerifiedUser(user);
     require(verified, 'FundingRound: User has not been verified');
-    require(contributors[user].voiceCredits > 0, 'FundingRound: User has not contributed');
+    require(contributors[user].amount > 0, 'FundingRound: User has not contributed');
     require(!contributors[user].isRegistered, 'FundingRound: User already registered');
     contributors[user].isRegistered = true;
   }
@@ -168,7 +159,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     returns (uint256)
   {
     address user = abi.decode(_data, (address));
-    uint256 initialVoiceCredits = contributors[user].voiceCredits;
+    uint256 initialVoiceCredits = contributors[user].amount;
     require(initialVoiceCredits > 0, 'FundingRound: User does not have any voice credits');
     return initialVoiceCredits;
   }
@@ -195,8 +186,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     public
   {
     require(isCancelled, 'FundingRound: Round not cancelled');
-    // Reconstruction of exact contribution amount from VCs may not be possible due to a loss of precision
-    uint256 amount = contributors[msg.sender].voiceCredits * voiceCreditFactor;
+    uint256 amount = contributors[msg.sender].amount;
     require(amount > 0, 'FundingRound: Nothing to withdraw');
     nativeToken.transfer(msg.sender, amount);
     emit FundsWithdrawn(msg.sender);
@@ -226,9 +216,8 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     bool verified = maci.verifySpentVoiceCredits(_totalSpent, _totalSpentSalt);
     require(verified, 'FundingRound: Incorrect total amount of spent voice credits');
     // Total amount of spent voice credits is the size of the pool of direct rewards.
-    // Everything else, including unspent voice credits and downscaling error,
-    // is considered a part of the matching pool
-    matchingPoolSize = nativeToken.balanceOf(address(this)) - _totalSpent * voiceCreditFactor;
+    // Everything else, including unspent voice credits, is considered a part of the matching pool
+    matchingPoolSize = nativeToken.balanceOf(address(this)) - _totalSpent;
     isFinalized = true;
   }
 
@@ -287,7 +276,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     );
     require(spentVerified, 'FundingRound: Incorrect amount of spent voice credits');
     recipients[voteOptionIndex] = true;
-    uint256 claimableAmount = matchingPoolSize * _tallyResult / totalVotes + _spent * voiceCreditFactor;
+    uint256 claimableAmount = matchingPoolSize * _tallyResult / totalVotes + _spent;
     nativeToken.transfer(_recipient, claimableAmount);
     emit FundsClaimed(_recipient, claimableAmount);
   }

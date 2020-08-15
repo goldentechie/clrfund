@@ -2,7 +2,7 @@ pragma solidity ^0.5.8;
 pragma experimental ABIEncoderV2;
 
 import '@openzeppelin/contracts/ownership/Ownable.sol';
-import '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
+import '@openzeppelin/contracts/token/ERC20/IERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 
 import 'maci-contracts/sol/MACI.sol';
@@ -16,13 +16,13 @@ import './MACIFactory.sol';
 import './FundingRound.sol';
 
 contract FundingRoundFactory is Ownable, MACISharedObjs, IVerifiedUserRegistry, IRecipientRegistry {
-  using SafeERC20 for ERC20Detailed;
+  using SafeERC20 for IERC20;
 
   // State
   uint256 private recipientCount = 0;
   address public coordinator;
 
-  ERC20Detailed public nativeToken;
+  IERC20 public nativeToken;
   MACIFactory public maciFactory;
   PubKey public coordinatorPubKey;
 
@@ -239,7 +239,7 @@ contract FundingRoundFactory is Ownable, MACISharedObjs, IVerifiedUserRegistry, 
   }
 
   function setToken(address _token) public onlyOwner {
-    nativeToken = ERC20Detailed(_token);
+    nativeToken = IERC20(_token);
     emit NewToken(_token);
   }
 
