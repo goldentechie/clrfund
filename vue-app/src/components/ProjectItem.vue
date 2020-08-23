@@ -35,9 +35,11 @@ export default class ProjectItem extends Vue {
   border: $border;
   border-radius: 20px;
   box-sizing: border-box;
-  flex: 1 0 20%;
-  margin: 0 ($content-space / 2) $content-space;
-  min-width: 200px;
+  width: 50%;
+
+  &:nth-child(2n) {
+    margin-left: $content-space;
+  }
 
   &:hover {
     .project-image {
@@ -54,11 +56,6 @@ export default class ProjectItem extends Vue {
 .project-image {
   border: none;
   border-radius: 20px 20px 0 0;
-  display: block;
-  height: 150px;
-  margin: 0 auto;
-  object-fit: cover;
-  text-align: center;
   width: 100%;
 }
 

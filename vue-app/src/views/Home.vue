@@ -252,8 +252,7 @@ export default class Home extends Vue {
 
 .project-list {
   display: flex;
-  flex-wrap: wrap;
   justify-content: space-between;
-  margin: $content-space (-$content-space / 2) 0;
+  margin: $content-space auto 0;
 }
 </style>
