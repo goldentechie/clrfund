@@ -1,8 +1,8 @@
 <template>
   <div id="app">
-    <div id="nav-bar">
-      <img class="logo" alt="clr.fund" src="@/assets/clr.svg" />
-      <div id="nav-menu">
+    <div id="nav">
+      <img class="logo" alt="clr.fund" src="./assets/clr.svg" />
+      <div id="menu">
         <router-link to="/">Home</router-link>
         <router-link to="/about">About</router-link>
       </div>
@@ -10,21 +10,19 @@
     <div id="content">
       <router-view />
     </div>
-    <div id="user-bar">
+    <div id="cart">
       <Profile />
-      <Cart />
+      <div>cart</div>
     </div>
   </div>
 </template>
 
 <script lang="ts">
-import Cart from '@/components/Cart.vue'
 import Profile from '@/components/Profile.vue'
 
 export default {
   name: 'clr.fund',
   components: {
-    Cart,
     Profile,
   },
 }
@@ -68,13 +66,12 @@ html {
   height: 100%;
 }
 
-#nav-bar {
+#nav {
   background-color: $bg-secondary-color;
   border-right: $border;
-  box-sizing: border-box;
-  flex-shrink: 0;
+  min-width: 20%;
   padding: $content-space;
-  width: 300px;
+  width: 20%;
 
   .logo {
     margin-left: 15%;
@@ -82,7 +79,7 @@ html {
   }
 }
 
-#nav-menu {
+#menu {
   margin-left: 15%;
   padding: 50px 5% 0;
 
@@ -136,12 +133,10 @@ html {
   }
 }
 
-#user-bar {
-  background-color: $bg-light-color;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  min-width: 300px;
+#cart {
+  background-color: #2c2938;
+  min-width: 20%;
+  text-align: center;
   width: 20%;
 }
 </style>
