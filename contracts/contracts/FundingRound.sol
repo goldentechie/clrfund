@@ -27,7 +27,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
   }
 
   // State
-  uint256 public startBlock;
+  uint256 public startTimestamp;
   uint256 public voiceCreditFactor;
   uint256 public contributorCount;
   uint256 public contributionDeadline;
@@ -77,8 +77,8 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     voiceCreditFactor = voiceCreditFactor > 0 ? voiceCreditFactor : 1;
     verifiedUserRegistry = _verifiedUserRegistry;
     recipientRegistry = _recipientRegistry;
-    startBlock = block.number;
-    contributionDeadline = block.timestamp + _duration;
+    startTimestamp = now;
+    contributionDeadline = now + _duration;
     coordinator = _coordinator;
     coordinatorPubKey = _coordinatorPubKey;
   }
@@ -125,7 +125,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
   {
     require(address(maci) != address(0), 'FundingRound: MACI not deployed');
     require(contributorCount < maci.maxUsers(), 'FundingRound: Contributor limit reached');
-    require(block.timestamp < contributionDeadline, 'FundingRound: Contribution period ended');
+    require(now < contributionDeadline, 'FundingRound: Contribution period ended');
     require(!isFinalized, 'FundingRound: Round finalized');
     require(amount > 0, 'FundingRound: Contribution amount must be greater than zero');
     require(amount <= MAX_VOICE_CREDITS * voiceCreditFactor, 'FundingRound: Contribution amount is too large');
@@ -244,7 +244,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
   {
     require(!isFinalized, 'FundingRound: Already finalized');
     require(address(maci) != address(0), 'FundingRound: MACI not deployed');
-    require(maci.calcVotingDeadline() < block.timestamp, 'FundingRound: Voting has not been finished');
+    require(maci.calcVotingDeadline() < now, 'FundingRound: Voting has not been finished');
     require(!maci.hasUntalliedStateLeaves(), 'FundingRound: Votes has not been tallied');
     require(bytes(tallyHash).length != 0, 'FundingRound: Tally hash has not been published');
     totalVotes = maci.totalVotes();
@@ -275,6 +275,24 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
   }
 
   /**
+    * @dev Get allocated token amount (without verification).
+    * @param _tallyResult The result of vote tally for the recipient.
+    * @param _spent The amount of voice credits spent on the recipient.
+    */
+  function getAllocatedAmount(
+    uint256 _tallyResult,
+    uint256 _spent
+  )
+    public
+    view
+    returns (uint256)
+  {
+    require(isFinalized, 'FundingRound: Round not finalized');
+    require(!isCancelled, 'FundingRound: Round has been cancelled');
+    return adjustedMatchingPoolSize * _tallyResult / totalVotes + _spent * voiceCreditFactor;
+  }
+
+  /**
     * @dev Claim allocated tokens.
     * @param _tallyResult The result of vote tally for the recipient.
     * @param _tallyResultProof Proof of correctness of the vote tally.
@@ -296,7 +314,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
   {
     require(isFinalized, 'FundingRound: Round not finalized');
     require(!isCancelled, 'FundingRound: Round has been cancelled');
-    uint256 voteOptionIndex = recipientRegistry.getRecipientIndex(_recipient, startBlock);
+    uint256 voteOptionIndex = recipientRegistry.getRecipientIndex(_recipient, startTimestamp);
     require(voteOptionIndex > 0, 'FundingRound: Invalid recipient address');
     require(!recipients[voteOptionIndex], 'FundingRound: Funds already claimed');
     (,, uint8 voteOptionTreeDepth) = maci.treeDepths();
@@ -317,8 +335,8 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     );
     require(spentVerified, 'FundingRound: Incorrect amount of spent voice credits');
     recipients[voteOptionIndex] = true;
-    uint256 claimableAmount = adjustedMatchingPoolSize * _tallyResult / totalVotes + _spent * voiceCreditFactor;
-    nativeToken.transfer(_recipient, claimableAmount);
-    emit FundsClaimed(_recipient, claimableAmount);
+    uint256 allocatedAmount = getAllocatedAmount(_tallyResult, _spent);
+    nativeToken.transfer(_recipient, allocatedAmount);
+    emit FundsClaimed(_recipient, allocatedAmount);
   }
 }
