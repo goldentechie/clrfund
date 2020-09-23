@@ -1,28 +1,17 @@
-import { Contract, FixedNumber } from 'ethers'
+import { BigNumber, Contract } from 'ethers'
 
 import { FundingRound } from './abi'
 import { provider } from './core'
 
-export async function getAllocatedAmount(
-  fundingRoundAddress: string,
-  tokenDecimals: number,
-  result: string,
-  spent: string,
-): Promise<FixedNumber> {
-  const fundingRound = new Contract(fundingRoundAddress, FundingRound, provider)
-  const allocatedAmount = await fundingRound.getAllocatedAmount(result, spent)
-  return FixedNumber.fromValue(
-    allocatedAmount,
-    tokenDecimals,
-  )
-}
-
-export async function isFundsClaimed(
+export async function getClaimedAmount(
   fundingRoundAddress: string,
   recipientAddress: string,
-): Promise<boolean> {
+): Promise<BigNumber | null> {
   const fundingRound = new Contract(fundingRoundAddress, FundingRound, provider)
   const eventFilter = fundingRound.filters.FundsClaimed(recipientAddress)
   const events = await fundingRound.queryFilter(eventFilter, 0)
-  return events.length > 0
+  if (events.length === 1) {
+    return (events[0].args as any)._amount
+  }
+  return null
 }

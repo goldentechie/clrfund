@@ -16,12 +16,7 @@
         :disabled="!canClaim()"
         @click="claim()"
       >
-        <template v-if="allocatedAmount">
-          Claim {{ allocatedAmount | formatAmount }} {{ currentRound.nativeTokenSymbol }}
-        </template>
-        <template v-else>
-          Claim
-        </template>
+        Claim
       </button>
       <div class="project-description">{{ project.description }}</div>
     </div>
@@ -31,13 +26,12 @@
 <script lang="ts">
 import Vue from 'vue'
 import Component from 'vue-class-component'
-import { FixedNumber } from 'ethers'
 
-import { getAllocatedAmount, isFundsClaimed } from '@/api/claims'
+
+import { getClaimedAmount } from '@/api/claims'
 import { CART_MAX_SIZE } from '@/api/contributions'
 import { Project, getProject } from '@/api/projects'
 import { RoundInfo, RoundStatus } from '@/api/round'
-import { Tally } from '@/api/tally'
 import ClaimModal from '@/components/ClaimModal.vue'
 import { ADD_CART_ITEM } from '@/store/mutation-types'
 
@@ -47,28 +41,17 @@ import { ADD_CART_ITEM } from '@/store/mutation-types'
 export default class ProjectView extends Vue {
 
   project: Project | null = null
-  allocatedAmount: FixedNumber | null = null
-  claimed: boolean | null = null
+  claimedFunds: boolean | null = null
 
-  get currentRound(): RoundInfo {
-    return this.$store.state.currentRound
-  }
-
-  private async checkAllocation(tally: Tally) {
-    const currentRound = this.currentRound
-    if (!this.project || !currentRound || currentRound.status !== RoundStatus.Finalized || !tally) {
+  private async checkClaim(round: RoundInfo) {
+    if (!this.project || !round) {
       return
     }
-    this.allocatedAmount = await getAllocatedAmount(
-      currentRound.fundingRoundAddress,
-      currentRound.nativeTokenDecimals,
-      tally.results.tally[this.project.index],
-      tally.totalVoiceCreditsPerVoteOption.tally[this.project.index],
-    )
-    this.claimed = await isFundsClaimed(
-      currentRound.fundingRoundAddress,
+    const claimedAmount = await getClaimedAmount(
+      round.fundingRoundAddress,
       this.project.address,
     )
+    this.claimedFunds = claimedAmount !== null
   }
 
   async created() {
@@ -80,12 +63,12 @@ export default class ProjectView extends Vue {
       this.$router.push({ name: 'home' })
       return
     }
-    // Wait for tally to load and get claim status
+    // Wait for round info to load and get claim status
     this.$store.watch(
-      (state) => state.tally,
-      this.checkAllocation,
+      (state) => state.currentRound,
+      this.checkClaim,
     )
-    this.checkAllocation(this.$store.state.tally)
+    this.checkClaim(this.$store.state.currentRound)
   }
 
   canContribute() {
@@ -97,12 +80,12 @@ export default class ProjectView extends Vue {
   }
 
   canClaim(): boolean {
-    const currentRound = this.currentRound
+    const currentRound = this.$store.state.currentRound
     return (
       currentRound &&
       currentRound.status === RoundStatus.Finalized &&
       this.$store.state.account &&
-      this.claimed === false
+      this.claimedFunds === false
     )
   }
 
@@ -117,7 +100,7 @@ export default class ProjectView extends Vue {
       },
       {
         closed: () => {
-          this.checkAllocation(this.$store.state.tally)
+          this.checkClaim(this.$store.state.currentRound)
         },
       },
     )
@@ -154,6 +137,5 @@ export default class ProjectView extends Vue {
 
 .project-description {
   font-size: 20px;
-  line-height: 30px;
 }
 </style>
