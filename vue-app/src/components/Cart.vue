@@ -13,7 +13,7 @@
           name="amount"
           placeholder="Amount"
         >
-        <div class="contribution-currency">{{ tokenSymbol }}</div>
+        <div class="contribution-currency">{{ nativeToken }}</div>
         <div class="remove-cart-item" @click="removeItem(item)">
           <img src="@/assets/remove.svg" />
         </div>
@@ -25,7 +25,7 @@
         class="btn contribute-btn"
         @click="contribute()"
       >
-        Contribute {{ total }} {{ tokenSymbol }} to {{ cart.length }} projects
+        Contribute {{ total }} {{ nativeToken }} to {{ cart.length }} projects
       </button>
     </div>
   </div>
@@ -69,7 +69,7 @@ export default class Cart extends Vue {
     }
   }
 
-  get tokenSymbol(): string {
+  get nativeToken(): string {
     const currentRound = this.$store.state.currentRound
     return currentRound ? currentRound.nativeTokenSymbol : ''
   }
