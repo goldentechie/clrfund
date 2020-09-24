@@ -23,21 +23,14 @@ function decodeRecipientAdded(event: Event): Project {
   }
 }
 
-export async function getProjects(atBlock: number): Promise<Project[]> {
-  const recipientAddedFilter = factory.filters.RecipientAdded()
-  const recipientAddedEvents = await factory.queryFilter(recipientAddedFilter, 0, atBlock)
+export async function getProjects(): Promise<Project[]> {
+  const recipientFilter = factory.filters.RecipientAdded()
+  const events = await factory.queryFilter(recipientFilter, 0)
   const projects: Project[] = []
-  for (const event of recipientAddedEvents) {
+  for (const event of events) {
     projects.push(decodeRecipientAdded(event))
   }
-  const recipientRemovedFilter = factory.filters.RecipientRemoved()
-  const recipientRemovedEvents = await factory.queryFilter(recipientRemovedFilter, 0, atBlock)
-  const removedRecipients = recipientRemovedEvents.map((event) => {
-    return (event.args as any)._recipient
-  })
-  return projects.filter((project) => {
-    return removedRecipients.indexOf(project.address) === -1
-  })
+  return projects
 }
 
 export async function getProject(address: string): Promise<Project | null> {
