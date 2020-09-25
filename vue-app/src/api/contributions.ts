@@ -4,8 +4,8 @@ import { FundingRound } from './abi'
 import { provider } from './core'
 import { Project } from './projects'
 
-export const DEFAULT_CONTRIBUTION_AMOUNT = 5
-export const CART_MAX_SIZE = 10 // A size of message batch
+// A size of message batch
+export const CART_MAX_SIZE = 10
 
 export interface CartItem extends Project {
   amount: number;

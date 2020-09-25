@@ -36,9 +36,6 @@ export default class App extends Vue {
 
   created() {
     this.$store.dispatch(LOAD_ROUND_INFO)
-    setInterval(() => {
-      this.$store.dispatch(LOAD_ROUND_INFO)
-    }, 60 * 1000)
   }
 
 }
@@ -82,14 +79,8 @@ a {
   color: $text-color;
   cursor: pointer;
   font-weight: bold;
-  line-height: 22px;
+  line-height: 150%;
   padding: 7px 20px;
-
-  img {
-    height: 1em;
-    margin: 0 10px;
-    vertical-align: middle;
-  }
 
   &:hover {
     background-color: $highlight-color;
@@ -100,18 +91,6 @@ a {
   &[disabled]:hover {
     background-color: $button-disabled-color !important;
     color: $text-color !important;
-  }
-}
-
-.btn-inactive {
-  background-color: transparent;
-  border: 2px solid $button-color;
-  color: $button-color;
-  padding: 5px 18px;
-
-  &:hover {
-    background-color: transparent;
-    color: $button-color;
   }
 }
 
