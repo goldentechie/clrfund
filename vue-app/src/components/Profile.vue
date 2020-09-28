@@ -10,9 +10,7 @@
     </button>
     <div v-if="account" class="profile-info">
       <div class="profile-name">{{ account }}</div>
-      <div class="profile-image">
-        <img v-if="profileImageUrl" :src="profileImageUrl">
-      </div>
+      <div class="profile-image"></div>
     </div>
   </div>
 </template>
@@ -22,16 +20,13 @@ import Vue from 'vue'
 import Component from 'vue-class-component'
 import { Web3Provider } from '@ethersproject/providers'
 
-import { getProfileImageUrl } from '@/api/profile'
 import { SET_WALLET_PROVIDER, SET_ACCOUNT } from '@/store/mutation-types'
 
 @Component
 export default class Profile extends Vue {
 
-  profileImageUrl: string | null = null
-
   mounted() {
-    const provider = (window as any).ethereum
+    const provider = (window as any).ethereum // eslint-disable-line @typescript-eslint/no-explicit-any
     if (!provider) {
       return
     }
@@ -67,9 +62,7 @@ export default class Profile extends Vue {
     } catch (error) {
       return
     }
-    const walletAddress = accounts[0]
-    this.$store.commit(SET_ACCOUNT, walletAddress)
-    this.profileImageUrl = await getProfileImageUrl(walletAddress)
+    this.$store.commit(SET_ACCOUNT, accounts[0])
   }
 
   get account(): string {
@@ -105,18 +98,13 @@ export default class Profile extends Vue {
   }
 
   .profile-image {
+    background-color: black;
     border: 4px solid $button-color;
     border-radius: 25px;
     box-sizing: border-box;
     height: 50px;
     margin-left: 20px;
-    overflow: hidden;
     width: 50px;
-
-    img {
-      height: 100%;
-      width: 100%;
-    }
   }
 }
 </style>
