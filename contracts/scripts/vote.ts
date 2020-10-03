@@ -47,10 +47,7 @@ async function main() {
       state.fundingRound,
       contributor,
     )
-    await fundingRoundAsContributor.submitMessageBatch(
-      messages.reverse(),
-      encPubKeys.reverse(),
-    )
+    await fundingRoundAsContributor.submitMessageBatch(messages, encPubKeys)
     console.log(`Contributor ${contributorAddress} voted.`)
   }
 }

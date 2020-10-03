@@ -96,8 +96,9 @@ async function main() {
     'FundingRound',
     fundingRoundAddress,
   )
+  await factory.deployMaci();
   const maciAddress = await fundingRound.maci()
-  console.log(`MACI address: ${maciAddress}`)
+  console.log(`MACI deployed: ${maciAddress}`)
 
   // Save the current state of the round
   fs.writeFileSync('state.json', JSON.stringify({

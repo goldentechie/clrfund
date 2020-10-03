@@ -157,6 +157,11 @@ contract FundingRoundFactory is Ownable, MACISharedObjs, IRecipientRegistry {
     external
     onlyOwner
   {
+    FundingRound currentRound = getCurrentRound();
+    require(
+      address(currentRound) == address(0) || address(currentRound.maci()) != address(0),
+      'Factory: Waiting for MACI deployment'
+    );
     maciFactory.setMaciParameters(
       _stateTreeDepth,
       _messageTreeDepth,
@@ -176,6 +181,7 @@ contract FundingRoundFactory is Ownable, MACISharedObjs, IRecipientRegistry {
   function deployNewRound()
     external
     onlyOwner
+    returns (FundingRound _newRound)
   {
     require(maciFactory.owner() == address(this), 'Factory: MACI factory is not owned by FR factory');
     require(address(nativeToken) != address(0), 'Factory: Native token is not set');
@@ -185,20 +191,38 @@ contract FundingRoundFactory is Ownable, MACISharedObjs, IRecipientRegistry {
       address(currentRound) == address(0) || currentRound.isFinalized(),
       'Factory: Current round is not finalized'
     );
+    uint256 signUpDuration = maciFactory.signUpDuration();
     FundingRound newRound = new FundingRound(
       nativeToken,
       verifiedUserRegistry,
       this,
-      coordinator
-    );
-    rounds.push(newRound);
-    MACI maci = maciFactory.deployMaci(
-      SignUpGatekeeper(newRound),
-      InitialVoiceCreditProxy(newRound),
+      signUpDuration,
+      coordinator,
       coordinatorPubKey
     );
-    newRound.setMaci(maci);
+    rounds.push(newRound);
     emit RoundStarted(address(newRound));
+    return newRound;
+  }
+
+  /**
+    * @dev Deploy MACI instance and link it to the current round.
+    */
+  function deployMaci()
+    external
+    onlyOwner
+  {
+    FundingRound currentRound = getCurrentRound();
+    require(address(currentRound) != address(0), 'Factory: Funding round has not been deployed');
+    require(address(currentRound.maci()) == address(0), 'Factory: MACI already deployed');
+    (uint256 x, uint256 y) = currentRound.coordinatorPubKey();
+    PubKey memory roundCoordinatorPubKey = PubKey(x, y);
+    MACI maci = maciFactory.deployMaci(
+      SignUpGatekeeper(currentRound),
+      InitialVoiceCreditProxy(currentRound),
+      roundCoordinatorPubKey
+    );
+    currentRound.setMaci(maci);
   }
 
   /**

@@ -13,19 +13,14 @@
       <div class="loader"></div>
     </div>
     <div v-if="step === 3">
-      <h3>Step 3 of 4: Vote</h3>
-      <div v-if="!voteTx">Please approve transaction in your wallet</div>
-      <div v-if="voteTx">Waiting for confirmation...</div>
-      <div class="loader"></div>
+      <h3>Step 3 of 4: Are you being bribed?</h3>
+      <button class="btn" @click="vote()">No</button>
     </div>
     <div v-if="step === 4">
-      <h3>Step 4 of 4: Success</h3>
-      <div>
-        Successfully contributed {{ contributor.contribution | formatAmount }} {{ currentRound.nativeTokenSymbol }} to the funding round.
-        <br>
-        If you are being bribed, please override your vote before {{ currentRound.votingDeadline | formatDate }}.
-      </div>
-      <button class="btn" @click="$emit('close')">OK</button>
+      <h3>Step 4 of 4: Vote</h3>
+      <div>Please send this transaction to {{ currentRound.fundingRoundAddress }} after {{ currentRound.contributionDeadline | formatDate }}:</div>
+      <div class="hex">{{ voteTxData }}</div>
+      <button class="btn" @click="$emit('close')">Done</button>
     </div>
   </div>
 </template>
@@ -61,11 +56,11 @@ export default class ContributionModal extends Vue {
 
   private amount: BigNumber = BigNumber.from(0)
   private votes: [number, BigNumber][] = []
-  contributor?: Contributor
+  private contributor?: Contributor
 
-  approvalTx?: TransactionResponse
-  contributionTx?: TransactionResponse
-  voteTx?: TransactionResponse
+  approvalTx: TransactionResponse | null = null
+  contributionTx: TransactionResponse | null = null
+  voteTxData = ''
 
   mounted() {
     const { nativeTokenDecimals, voiceCreditFactor } = this.currentRound
@@ -90,14 +85,13 @@ export default class ContributionModal extends Vue {
   private async contribute() {
     const signer = this.getSigner()
     const {
-      coordinatorPubKey,
       nativeTokenAddress,
       nativeTokenDecimals,
       maciAddress,
       fundingRoundAddress,
     } = this.currentRound
     const token = new Contract(nativeTokenAddress, ERC20, signer)
-    // Approve transfer (step 1)
+    // Approve transfer
     const allowance = await token.allowance(signer.getAddress(), fundingRoundAddress)
     if (allowance < this.amount) {
       const approvalTx = await token.approve(fundingRoundAddress, this.amount)
@@ -105,7 +99,7 @@ export default class ContributionModal extends Vue {
       await approvalTx.wait()
     }
     this.step += 1
-    // Contribute (step 2)
+    // Contribute
     const contributorKeypair = new Keypair()
     const fundingRound = new Contract(fundingRoundAddress, FundingRound, signer)
     const contributionTx = await fundingRound.contribute(
@@ -117,16 +111,27 @@ export default class ContributionModal extends Vue {
     const maci = new Contract(maciAddress, MACI, signer)
     const stateIndex = await getEventArg(contributionTx, maci, 'SignUp', '_stateIndex')
     const voiceCredits = await getEventArg(contributionTx, maci, 'SignUp', '_voiceCreditBalance')
+    this.step += 1
     this.contributor = {
       keypair: contributorKeypair,
       stateIndex,
       contribution: FixedNumber.fromValue(this.amount, nativeTokenDecimals),
       voiceCredits,
     }
-    // Set contribution and update round info
+    // Set contribution and clear the cart
     this.$store.commit(SET_CONTRIBUTION, this.contributor.contribution)
+    this.$store.state.cart.slice().forEach((item) => {
+      this.$store.commit(REMOVE_CART_ITEM, item)
+    })
     this.$store.dispatch(LOAD_ROUND_INFO)
-    // Vote (step 3)
+  }
+
+  vote() {
+    if (!this.contributor) {
+      return
+    }
+    this.step += 1
+    const { coordinatorPubKey, fundingRoundAddress } = this.currentRound
     const messages: Message[] = []
     const encPubKeys: PubKey[] = []
     let nonce = 1
@@ -141,21 +146,15 @@ export default class ContributionModal extends Vue {
       encPubKeys.push(encPubKey)
       nonce += 1
     }
-    this.step += 1
-    const voteTx = await fundingRound.submitMessageBatch(
-      messages.reverse().map((msg) => msg.asContractParam()),
-      encPubKeys.reverse().map((key) => key.asContractParam()),
-    )
-    this.voteTx = voteTx
-    await voteTx.wait()
-    this.step += 1
-    // Clear the cart
-    this.$store.state.cart.slice().forEach((item) => {
-      this.$store.commit(REMOVE_CART_ITEM, item)
-    })
+    const fundingRound = new Contract(fundingRoundAddress, FundingRound)
+    this.voteTxData = fundingRound.interface.encodeFunctionData('submitMessageBatch', [
+      messages.map((msg) => msg.asContractParam()),
+      encPubKeys.map((key) => key.asContractParam()),
+    ])
   }
 }
 </script>
+
 
 <style scoped lang="scss">
 @import '../styles/vars';
@@ -176,9 +175,5 @@ export default class ContributionModal extends Vue {
   overflow-y: scroll;
   text-align: left;
   word-wrap: break-word;
-}
-
-.btn {
-  margin-top: 20px;
 }
 </style>
