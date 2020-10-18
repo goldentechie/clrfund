@@ -59,10 +59,9 @@ import ContributionModal from '@/components/ContributionModal.vue'
 import ReallocationModal from '@/components/ReallocationModal.vue'
 
 import { MAX_CONTRIBUTION_AMOUNT, CartItem, Contributor } from '@/api/contributions'
-import { RoundStatus } from '@/api/round'
 import { storage } from '@/api/storage'
 import { User } from '@/api/user'
-import { LOAD_USER_INFO } from '@/store/action-types'
+import { CHECK_VERIFICATION } from '@/store/action-types'
 import {
   SET_CONTRIBUTOR,
   ADD_CART_ITEM,
@@ -73,14 +72,10 @@ import {
 const CART_STORAGE_KEY = 'cart'
 const CONTRIBUTOR_INFO_STORAGE_KEY = 'contributor-info'
 
-function loadContributorInfo(
-  fundingRoundAddress: string,
-  user: User,
-): Contributor | null {
+function loadContributorInfo(user: User): Contributor | null {
   const serializedData = storage.getItem(
     user.walletAddress,
     user.encryptionKey,
-    fundingRoundAddress,
     CONTRIBUTOR_INFO_STORAGE_KEY,
   )
   if (serializedData) {
@@ -95,16 +90,11 @@ function loadContributorInfo(
 @Component({
   watch: {
     cart(items: CartItem[]) {
-      const currentUser = this.$store.state.currentUser
-      const currentRound = this.$store.state.currentRound
-      if (!currentUser || !currentRound) {
-        return
-      }
       // Save cart to local storage on changes
+      const currentUser = this.$store.state.currentUser
       storage.setItem(
         currentUser.walletAddress,
         currentUser.encryptionKey,
-        currentRound.fundingRoundAddress,
         CART_STORAGE_KEY,
         JSON.stringify(items),
       )
@@ -114,54 +104,35 @@ function loadContributorInfo(
 export default class Cart extends Vue {
 
   mounted() {
-    // Reload cart when wallet account or round changes
+    // Restore cart from local storage
     this.$store.watch(
-      (state) => {
-        return (
-          state.currentUser?.walletAddress +
-          state.currentRound?.fundingRoundAddress
-        )
-      },
-      this.refreshCart,
+      (state) => state.currentUser?.walletAddress,
+      this.restoreCart,
     )
-    this.refreshCart()
+    this.restoreCart()
 
-    // Reload contributor info if wallet account of round changes
+    // Restore contributor info from local storage
     this.$store.watch(
-      (state) => {
-        return (
-          state.currentUser?.walletAddress +
-          state.currentRound?.fundingRoundAddress
-        )
-      },
-      this.refreshContributor,
+      (state) => state.currentUser?.walletAddress,
+      this.restoreContributor,
     )
-    this.refreshContributor()
+    this.restoreContributor()
 
-    // Check verification and token balance every minute
-    setInterval(() => {
-      this.$store.dispatch(LOAD_USER_INFO)
+    // Check verification every minute
+    setInterval(async () => {
+      this.$store.dispatch(CHECK_VERIFICATION)
     }, 60 * 1000)
   }
 
-  private refreshCart() {
+  private restoreCart() {
     const currentUser = this.$store.state.currentUser
     if (!currentUser) {
-      // Clear the cart on log out / when not logged in
-      this.cart.slice().forEach((item) => {
-        this.$store.commit(REMOVE_CART_ITEM, item)
-      })
+      // Restore cart only if user has logged in
       return
     }
-    const currentRound = this.$store.state.currentRound
-    if (!currentRound) {
-      return
-    }
-    // Load cart from local storage
     const serializedCart = storage.getItem(
       currentUser.walletAddress,
       currentUser.encryptionKey,
-      currentRound.fundingRoundAddress,
       CART_STORAGE_KEY,
     )
     if (serializedCart) {
@@ -171,22 +142,13 @@ export default class Cart extends Vue {
     }
   }
 
-  private refreshContributor() {
+  private restoreContributor() {
     const currentUser = this.$store.state.currentUser
     if (!currentUser) {
-      // Reset contributor no log out / when not logged in
-      this.$store.commit(SET_CONTRIBUTOR, null)
+      // Restore contributor info only if user has logged in
       return
     }
-    const currentRound = this.$store.state.currentRound
-    if (!currentRound) {
-      return
-    }
-    // Load contributor info from local storage
-    const contributor = loadContributorInfo(
-      currentRound.fundingRoundAddress,
-      currentUser,
-    )
+    const contributor = loadContributorInfo(currentUser)
     if (contributor) {
       this.$store.commit(SET_CONTRIBUTOR, contributor)
     }
@@ -198,7 +160,7 @@ export default class Cart extends Vue {
   }
 
   get contribution(): BigNumber {
-    return this.$store.state.currentUser?.contribution || BigNumber.from(0)
+    return this.$store.state.contribution
   }
 
   get cart(): CartItem[] {
@@ -236,7 +198,7 @@ export default class Cart extends Vue {
 
   canRemoveItem(): boolean {
     // The number of MACI messages can't go down after initial submission
-    return this.contribution.isZero()
+    return !this.$store.state.contributor
   }
 
   removeItem(item: CartItem) {
@@ -290,20 +252,11 @@ export default class Cart extends Vue {
       return 'Your account is not verified'
     } else if (!this.isFormValid()) {
       return 'Please enter correct amounts'
-    } else if (currentRound.status === RoundStatus.Cancelled) {
-      return 'Funding round has been cancelled'
     } else {
-      const total = this.getTotal()
       if (this.contribution.isZero()) {
         // Contributing
         if (DateTime.local() >= currentRound.signUpDeadline) {
           return 'The contribution period has ended'
-        } else if (total.eq(BigNumber.from(0))) {
-          return 'Contribution amount must be greater then zero'
-        } else if (currentUser.balance === null) {
-          return '' // No error: waiting for balance
-        } else if (total.gt(currentUser.balance)) {
-          return `Insufficient ${currentRound.nativeTokenSymbol} balance`
         } else if (this.isGreaterThanMax()) {
           return 'Contribution amount is too large'
         } else {

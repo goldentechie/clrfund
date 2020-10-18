@@ -20,16 +20,15 @@
         <span>In cart</span>
       </button>
       <button
-        v-if="allocatedAmount !== null && claimed !== null"
         class="btn claim-btn"
         :disabled="!canClaim()"
         @click="claim()"
       >
-        <template v-if="claimed">
-          Received {{ allocatedAmount | formatAmount }} {{ tokenSymbol }}
+        <template v-if="allocatedAmount">
+          Claim {{ allocatedAmount | formatAmount }} {{ tokenSymbol }}
         </template>
         <template v-else>
-          Claim {{ allocatedAmount | formatAmount }} {{ tokenSymbol }}
+          Claim
         </template>
       </button>
       <div class="project-description">{{ project.description }}</div>

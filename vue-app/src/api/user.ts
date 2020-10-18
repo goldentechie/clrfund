@@ -1,18 +1,16 @@
 import { getProfile } from '3box/lib/api'
 import makeBlockie from 'ethereum-blockies-base64'
-import { BigNumber, Contract } from 'ethers'
+import { Contract } from 'ethers'
 import { Web3Provider } from '@ethersproject/providers'
 
-import { FundingRound, VerifiedUserRegistry, ERC20 } from './abi'
+import { FundingRound, VerifiedUserRegistry } from './abi'
 import { ipfsGatewayUrl, provider } from './core'
 
 export interface User {
   walletAddress: string;
   walletProvider: Web3Provider;
-  encryptionKey: string;
   isVerified: boolean | null;
-  balance: BigNumber | null;
-  contribution: BigNumber | null;
+  encryptionKey: string;
 }
 
 export async function getProfileImageUrl(walletAddress: string): Promise<string | null> {
@@ -38,12 +36,4 @@ export async function isVerifiedUser(
   const registryAddress = await fundingRound.verifiedUserRegistry()
   const registry = new Contract(registryAddress, VerifiedUserRegistry, provider)
   return await registry.isVerifiedUser(walletAddress)
-}
-
-export async function getTokenBalance(
-  tokenAddress: string,
-  walletAddress: string,
-): Promise<BigNumber> {
-  const token = new Contract(tokenAddress, ERC20, provider)
-  return await token.balanceOf(walletAddress)
 }
