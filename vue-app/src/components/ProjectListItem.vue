@@ -58,10 +58,7 @@ export default class ProjectListItem extends Vue {
   }
 
   contribute(project: Project) {
-    this.$store.commit(ADD_CART_ITEM, {
-      ...project,
-      amount: DEFAULT_CONTRIBUTION_AMOUNT.toString(),
-    })
+    this.$store.commit(ADD_CART_ITEM, { ...project, amount: DEFAULT_CONTRIBUTION_AMOUNT })
   }
 }
 </script>

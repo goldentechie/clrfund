@@ -21,11 +21,11 @@
     <div v-if="step === 4">
       <h3>Step 4 of 4: Success</h3>
       <div>
-        Successfully contributed {{ contribution | formatAmount }} {{ currentRound.nativeTokenSymbol }} to the funding round. Only the coordinator can know which projects you have supported.
+        Successfully contributed {{ contributor.contribution | formatAmount }} {{ currentRound.nativeTokenSymbol }} to the funding round.
         <br>
-        You can reallocate contributed funds until {{ currentRound.votingDeadline | formatDate }}.
+        If you are being bribed, please override your vote before {{ currentRound.votingDeadline | formatDate }}.
       </div>
-      <button class="btn close-btn" @click="$emit('close')">OK</button>
+      <button class="btn" @click="$emit('close')">OK</button>
     </div>
   </div>
 </template>
@@ -33,25 +33,35 @@
 <script lang="ts">
 import Vue from 'vue'
 import Component from 'vue-class-component'
-import { Prop } from 'vue-property-decorator'
 import { BigNumber, Contract, FixedNumber, Signer } from 'ethers'
 import { TransactionResponse } from '@ethersproject/abstract-provider'
+import { parseFixed } from '@ethersproject/bignumber'
 import { Keypair, PubKey, Message } from 'maci-domainobjs'
 
-import { Contributor } from '@/api/contributions'
+import { CartItem } from '@/api/contributions'
 import { RoundInfo } from '@/api/round'
 import { storage } from '@/api/storage'
 import { User } from '@/api/user'
 import { LOAD_ROUND_INFO } from '@/store/action-types'
-import { SET_CONTRIBUTOR, SET_CONTRIBUTION } from '@/store/mutation-types'
+import { REMOVE_CART_ITEM, SET_CONTRIBUTION } from '@/store/mutation-types'
 import { getEventArg } from '@/utils/contracts'
 import { createMessage } from '@/utils/maci'
 
 import { FundingRound, ERC20, MACI } from '@/api/abi'
 
-const CONTRIBUTOR_INFO_STORAGE_KEY = 'contributor-info'
+interface Contributor {
+  keypair: Keypair;
+  stateIndex: number;
+  contribution: FixedNumber;
+  voiceCredits: BigNumber;
+}
 
-function saveContributorInfo(user: User, contributor: Contributor) {
+const CONTRIBUTOR_KEY_STORAGE_KEY = 'contributor-key'
+
+function saveContributorKey(
+  contributor: Contributor,
+  user: User,
+) {
   const serializedData = JSON.stringify({
     privateKey: contributor.keypair.privKey.serialize(),
     stateIndex: contributor.stateIndex,
@@ -59,7 +69,7 @@ function saveContributorInfo(user: User, contributor: Contributor) {
   storage.setItem(
     user.walletAddress,
     user.encryptionKey,
-    CONTRIBUTOR_INFO_STORAGE_KEY,
+    CONTRIBUTOR_KEY_STORAGE_KEY,
     serializedData,
   )
 }
@@ -67,16 +77,24 @@ function saveContributorInfo(user: User, contributor: Contributor) {
 @Component
 export default class ContributionModal extends Vue {
 
-  @Prop()
-  votes!: [number, BigNumber][]
-
   step = 1
+
+  private amount: BigNumber = BigNumber.from(0)
+  private votes: [number, BigNumber][] = []
+  contributor: Contributor | null = null
 
   approvalTx: TransactionResponse | null = null
   contributionTx: TransactionResponse | null = null
   voteTx: TransactionResponse | null = null
 
   mounted() {
+    const { nativeTokenDecimals, voiceCreditFactor } = this.currentRound
+    this.$store.state.cart.forEach((item: CartItem) => {
+      const amountRaw = parseFixed(item.amount.toString(), nativeTokenDecimals)
+      const voiceCredits = amountRaw.div(voiceCreditFactor)
+      this.votes.push([item.index, voiceCredits])
+      this.amount = this.amount.add(voiceCredits.mul(voiceCreditFactor))
+    })
     this.contribute()
   }
 
@@ -84,23 +102,25 @@ export default class ContributionModal extends Vue {
     return this.$store.state.currentRound
   }
 
+  private getSigner(): Signer {
+    const provider = this.$store.state.currentUser.walletProvider
+    return provider.getSigner()
+  }
+
   private async contribute() {
-    const signer: Signer = this.$store.state.currentUser.walletProvider.getSigner()
+    const signer = this.getSigner()
     const {
       coordinatorPubKey,
       nativeTokenAddress,
-      voiceCreditFactor,
+      nativeTokenDecimals,
       maciAddress,
       fundingRoundAddress,
     } = this.currentRound
-    const total = this.votes.reduce((total: BigNumber, [, voiceCredits]) => {
-      return total.add(voiceCredits.mul(voiceCreditFactor))
-    }, BigNumber.from(0))
     const token = new Contract(nativeTokenAddress, ERC20, signer)
     // Approve transfer (step 1)
     const allowance = await token.allowance(signer.getAddress(), fundingRoundAddress)
-    if (allowance < total) {
-      const approvalTx = await token.approve(fundingRoundAddress, total)
+    if (allowance < this.amount) {
+      const approvalTx = await token.approve(fundingRoundAddress, this.amount)
       this.approvalTx = approvalTx
       await approvalTx.wait()
     }
@@ -110,25 +130,23 @@ export default class ContributionModal extends Vue {
     const fundingRound = new Contract(fundingRoundAddress, FundingRound, signer)
     const contributionTx = await fundingRound.contribute(
       contributorKeypair.pubKey.asContractParam(),
-      total,
+      this.amount,
     )
     this.contributionTx = contributionTx
     // Get state index and amount of voice credits
     const maci = new Contract(maciAddress, MACI, signer)
     const stateIndex = await getEventArg(contributionTx, maci, 'SignUp', '_stateIndex')
     const voiceCredits = await getEventArg(contributionTx, maci, 'SignUp', '_voiceCreditBalance')
-    if (!voiceCredits.mul(voiceCreditFactor).eq(total)) {
-      throw new Error('Incorrect amount of voice credits')
-    }
-    const contributor = {
+    this.contributor = {
       keypair: contributorKeypair,
       stateIndex: stateIndex.toNumber(),
+      contribution: FixedNumber.fromValue(this.amount, nativeTokenDecimals),
+      voiceCredits,
     }
     // Save contributor info to storage
-    saveContributorInfo(this.$store.state.currentUser, contributor)
+    saveContributorKey(this.contributor, this.$store.state.currentUser)
     // Set contribution and update round info
-    this.$store.commit(SET_CONTRIBUTOR, contributor)
-    this.$store.commit(SET_CONTRIBUTION, total)
+    this.$store.commit(SET_CONTRIBUTION, this.contributor.contribution)
     this.$store.dispatch(LOAD_ROUND_INFO)
     // Vote (step 3)
     const messages: Message[] = []
@@ -136,8 +154,8 @@ export default class ContributionModal extends Vue {
     let nonce = 1
     for (const [recipientIndex, voiceCredits] of this.votes) {
       const [message, encPubKey] = createMessage(
-        contributor.stateIndex,
-        contributor.keypair, null,
+        this.contributor.stateIndex,
+        this.contributor.keypair, null,
         coordinatorPubKey,
         recipientIndex, voiceCredits, nonce,
       )
@@ -153,19 +171,36 @@ export default class ContributionModal extends Vue {
     this.voteTx = voteTx
     await voteTx.wait()
     this.step += 1
-  }
-
-  get contribution(): FixedNumber {
-    return FixedNumber.fromValue(
-      this.$store.state.contribution,
-      this.currentRound.nativeTokenDecimals,
-    )
+    // Clear the cart
+    this.$store.state.cart.slice().forEach((item) => {
+      this.$store.commit(REMOVE_CART_ITEM, item)
+    })
   }
 }
 </script>
 
 <style scoped lang="scss">
-.close-btn {
+@import '../styles/vars';
+
+.modal-body {
+  background-color: $bg-light-color;
+  padding: 20px;
+  text-align: center;
+}
+
+.hex {
+  background-color: #666;
+  font-family: monospace;
+  font-size: 12px;
+  height: 50px;
+  padding: 5px;
+  margin: 10px 0;
+  overflow-y: scroll;
+  text-align: left;
+  word-wrap: break-word;
+}
+
+.btn {
   margin-top: 20px;
 }
 </style>

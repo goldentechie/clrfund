@@ -73,10 +73,6 @@ a {
   box-sizing: border-box;
   color: $text-color;
   padding: 7px;
-
-  &.invalid {
-    border-color: $error-color;
-  }
 }
 
 .btn {
@@ -198,12 +194,6 @@ a {
   flex-shrink: 0;
   min-width: 300px;
   width: 20%;
-}
-
-.modal-body {
-  background-color: $bg-light-color;
-  padding: 20px;
-  text-align: center;
 }
 
 .loader {
