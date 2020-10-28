@@ -33,7 +33,6 @@ describe('End-to-end Tests', function () {
   let contributors: Signer[]
 
   let verifiedUserRegistry: Contract
-  let recipientRegistry: Contract
   let fundingRoundFactory: Contract
   let token: Contract
   let fundingRound: Contract
@@ -53,13 +52,10 @@ describe('End-to-end Tests', function () {
     const maciFactory = await deployMaciFactory(deployer)
     const SimpleUserRegistry = await ethers.getContractFactory('SimpleUserRegistry', deployer)
     verifiedUserRegistry = await SimpleUserRegistry.deploy()
-    const SimpleRecipientRegistry = await ethers.getContractFactory('SimpleRecipientRegistry', deployer)
-    recipientRegistry = await SimpleRecipientRegistry.deploy()
     const FundingRoundFactory = await ethers.getContractFactory('FundingRoundFactory', deployer)
     fundingRoundFactory = await FundingRoundFactory.deploy(
       maciFactory.address,
       verifiedUserRegistry.address,
-      recipientRegistry.address,
     )
     await maciFactory.transferOwnership(fundingRoundFactory.address)
     maciParameters = await MaciParameters.read(maciFactory)
@@ -92,15 +88,15 @@ describe('End-to-end Tests', function () {
       .contributeMatchingFunds(poolContributionAmount)
 
     // Add recipients
-    await recipientRegistry.addRecipient(
+    await fundingRoundFactory.addRecipient(
       await recipient1.getAddress(),
       JSON.stringify({ name: 'Project 1', description: 'Project 1', imageHash: '' }),
     )
-    await recipientRegistry.addRecipient(
+    await fundingRoundFactory.addRecipient(
       await recipient2.getAddress(),
       JSON.stringify({ name: 'Project 2', description: 'Project 2', imageHash: '' }),
     )
-    await recipientRegistry.addRecipient(
+    await fundingRoundFactory.addRecipient(
       await recipient3.getAddress(),
       JSON.stringify({ name: 'Project 3', description: 'Project 3', imageHash: '' }),
     )
