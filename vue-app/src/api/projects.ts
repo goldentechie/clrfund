@@ -1,7 +1,8 @@
-import { Event } from 'ethers'
+import { Contract, Event } from 'ethers'
 import { isAddress } from '@ethersproject/address'
 
-import { factory, ipfsGatewayUrl } from './core'
+import { RecipientRegistry } from './abi'
+import { factory, provider, ipfsGatewayUrl } from './core'
 
 export interface Project {
   address: string;
@@ -25,11 +26,16 @@ function decodeRecipientAdded(event: Event): Project {
   }
 }
 
-export async function getProjects(atBlock?: number): Promise<Project[]> {
-  const recipientAddedFilter = factory.filters.RecipientAdded()
-  const recipientAddedEvents = await factory.queryFilter(recipientAddedFilter, 0, atBlock)
-  const recipientRemovedFilter = factory.filters.RecipientRemoved()
-  const recipientRemovedEvents = await factory.queryFilter(recipientRemovedFilter, 0)
+export async function getProjects(
+  startBlock?: number,
+  endBlock?: number,
+): Promise<Project[]> {
+  const registryAddress = await factory.recipientRegistry()
+  const registry = new Contract(registryAddress, RecipientRegistry, provider)
+  const recipientAddedFilter = registry.filters.RecipientAdded()
+  const recipientAddedEvents = await registry.queryFilter(recipientAddedFilter, 0, endBlock)
+  const recipientRemovedFilter = registry.filters.RecipientRemoved()
+  const recipientRemovedEvents = await registry.queryFilter(recipientRemovedFilter, 0)
   const projects: Project[] = []
   for (const event of recipientAddedEvents) {
     let project
@@ -43,7 +49,7 @@ export async function getProjects(atBlock?: number): Promise<Project[]> {
       return (event.args as any)._recipient === project.address
     })
     if (removed) {
-      if (!atBlock || atBlock && removed.blockNumber <= atBlock) {
+      if (!startBlock || startBlock && removed.blockNumber <= startBlock) {
         // Start block not specified
         // or recipient had been removed before start block
         continue
@@ -60,8 +66,10 @@ export async function getProject(address: string): Promise<Project | null> {
   if (!isAddress(address)) {
     return null
   }
-  const recipientAddedFilter = factory.filters.RecipientAdded(address)
-  const recipientAddedEvents = await factory.queryFilter(recipientAddedFilter, 0)
+  const registryAddress = await factory.recipientRegistry()
+  const registry = new Contract(registryAddress, RecipientRegistry, provider)
+  const recipientAddedFilter = registry.filters.RecipientAdded(address)
+  const recipientAddedEvents = await registry.queryFilter(recipientAddedFilter, 0)
   if (recipientAddedEvents.length !== 1) {
     return null
   }
@@ -71,8 +79,8 @@ export async function getProject(address: string): Promise<Project | null> {
   } catch {
     return null
   }
-  const recipientRemovedFilter = factory.filters.RecipientRemoved(address)
-  const recipientRemovedEvents = await factory.queryFilter(recipientRemovedFilter, 0)
+  const recipientRemovedFilter = registry.filters.RecipientRemoved(address)
+  const recipientRemovedEvents = await registry.queryFilter(recipientRemovedFilter, 0)
   if (recipientRemovedEvents.length !== 0) {
     project.isRemoved = true
   }
