@@ -2,11 +2,9 @@
   <div class="modal-body">
     <div v-if="step === 1">
       <h3>Step 1 of 2: Claim funds</h3>
-      <transaction
-        :hash="claimTxHash"
-        :error="claimTxError"
-        @close="$emit('close')"
-      ></transaction>
+      <div v-if="!claimTx">Please confirm transaction in your wallet</div>
+      <div v-if="claimTx">Waiting for confirmation...</div>
+      <div class="loader"></div>
     </div>
     <div v-if="step === 2">
       <h3>Step 2 of 2: Success</h3>
@@ -21,19 +19,15 @@ import Vue from 'vue'
 import Component from 'vue-class-component'
 import { Prop } from 'vue-property-decorator'
 import { Contract, FixedNumber, Signer } from 'ethers'
+import { TransactionResponse } from '@ethersproject/abstract-provider'
 
 import { FundingRound } from '@/api/abi'
 import { Project } from '@/api/projects'
 import { RoundInfo } from '@/api/round'
-import Transaction from '@/components/Transaction.vue'
-import { waitForTransaction, getEventArg } from '@/utils/contracts'
+import { getEventArg } from '@/utils/contracts'
 import { getRecipientClaimData } from '@/utils/maci'
 
-@Component({
-  components: {
-    Transaction,
-  },
-})
+@Component
 export default class ClaimModal extends Vue {
 
   @Prop()
@@ -41,8 +35,7 @@ export default class ClaimModal extends Vue {
 
   step = 1
   amount = FixedNumber.from(0)
-  claimTxHash = ''
-  claimTxError = ''
+  claimTx: TransactionResponse | null = null
 
   get currentRound(): RoundInfo {
     return this.$store.state.currentRound
@@ -62,18 +55,10 @@ export default class ClaimModal extends Vue {
       recipientTreeDepth,
       this.$store.state.tally,
     )
-    let claimTxReceipt
-    try {
-      claimTxReceipt = await waitForTransaction(
-        fundingRound.claimFunds(...recipientClaimData),
-        (hash) => this.claimTxHash = hash,
-      )
-    } catch (error) {
-      this.claimTxError = error.message
-      return
-    }
+    const claimTx = await fundingRound.claimFunds(...recipientClaimData)
+    this.claimTx = claimTx
     this.amount = FixedNumber.fromValue(
-      getEventArg(claimTxReceipt, fundingRound, 'FundsClaimed', '_amount'),
+      await getEventArg(claimTx, fundingRound, 'FundsClaimed', '_amount'),
       nativeTokenDecimals,
     )
     this.step += 1
@@ -82,8 +67,6 @@ export default class ClaimModal extends Vue {
 </script>
 
 <style scoped lang="scss">
-@import '../styles/vars';
-
 .close-btn {
   margin-top: 20px;
 }
