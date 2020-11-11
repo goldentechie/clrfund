@@ -140,11 +140,7 @@ export default class Profile extends Vue {
 @import '../styles/vars';
 
 .profile {
-  align-items: center;
   background-color: #23212f;
-  display: flex;
-  height: $profile-image-size;
-  justify-content: center;
   padding: $content-space;
 }
 
@@ -162,7 +158,6 @@ export default class Profile extends Vue {
   align-items: center;
   display: flex;
   flex-direction: row;
-  width: 100%;
 
   .profile-name {
     flex: 1;
@@ -174,10 +169,10 @@ export default class Profile extends Vue {
     border: 4px solid $button-color;
     border-radius: 25px;
     box-sizing: border-box;
-    height: $profile-image-size;
+    height: 50px;
     margin-left: 20px;
     overflow: hidden;
-    width: $profile-image-size;
+    width: 50px;
 
     img {
       height: 100%;

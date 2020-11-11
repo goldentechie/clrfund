@@ -8,9 +8,7 @@ import Meta from 'vue-meta'
 import VModal from 'vue-js-modal'
 
 Vue.use(Meta)
-Vue.use(VModal, {
-  dynamicDefaults: { adaptive: true },
-})
+Vue.use(VModal)
 
 Vue.config.productionTip = false
 

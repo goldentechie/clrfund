@@ -143,13 +143,10 @@ export default class Cart extends Vue {
     )
     this.refreshContributor()
 
-    // Reload user info when round info loads or changes
-    this.$store.watch(
-      (state) => state.currentRound?.fundingRoundAddress,
-      () => {
-        this.$store.dispatch(LOAD_USER_INFO)
-      },
-    )
+    // Check verification and token balance every minute
+    setInterval(() => {
+      this.$store.dispatch(LOAD_USER_INFO)
+    }, 60 * 1000)
   }
 
   private refreshCart() {
@@ -379,7 +376,7 @@ export default class Cart extends Vue {
 .cart {
   display: flex;
   flex-direction: column;
-  min-height: calc(100vh - #{$profile-image-size + 2 * $content-space});
+  min-height: calc(100vh - 110px);
 }
 
 .cart-item {
