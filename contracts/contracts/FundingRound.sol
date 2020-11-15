@@ -1,8 +1,10 @@
-pragma solidity ^0.5.8;
+// SPDX-License-Identifier: GPL-3.0
+
+pragma solidity ^0.6.12;
 pragma experimental ABIEncoderV2;
 
-import '@openzeppelin/contracts/ownership/Ownable.sol';
-import '@openzeppelin/contracts/token/ERC20/ERC20Detailed.sol';
+import '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts/token/ERC20/ERC20.sol';
 import '@openzeppelin/contracts/token/ERC20/SafeERC20.sol';
 
 import 'maci-contracts/sol/MACI.sol';
@@ -14,7 +16,7 @@ import './verifiedUserRegistry/IVerifiedUserRegistry.sol';
 import './recipientRegistry/IRecipientRegistry.sol';
 
 contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoiceCreditProxy {
-  using SafeERC20 for ERC20Detailed;
+  using SafeERC20 for ERC20;
 
   // Constants
   uint256 private constant MAX_VOICE_CREDITS = 10 ** 9;  // MACI allows 2 ** 32 voice credits max
@@ -31,14 +33,14 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
   uint256 public voiceCreditFactor;
   uint256 public contributorCount;
   uint256 public matchingPoolSize;
-  uint256 public adjustedMatchingPoolSize;
+  uint256 public totalSpent;
   uint256 public totalVotes;
   bool public isFinalized = false;
   bool public isCancelled = false;
 
   address public coordinator;
   MACI public maci;
-  ERC20Detailed public nativeToken;
+  ERC20 public nativeToken;
   IVerifiedUserRegistry public verifiedUserRegistry;
   IRecipientRegistry public recipientRegistry;
   string public tallyHash;
@@ -60,7 +62,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     * @param _coordinator Address of the coordinator.
     */
   constructor(
-    ERC20Detailed _nativeToken,
+    ERC20 _nativeToken,
     IVerifiedUserRegistry _verifiedUserRegistry,
     IRecipientRegistry _recipientRegistry,
     address _coordinator
@@ -134,6 +136,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     address /* _caller */,
     bytes memory _data
   )
+    override
     public
   {
     require(msg.sender == address(maci), 'FundingRound: Only MACI contract can register voters');
@@ -154,6 +157,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     address /* _caller */,
     bytes memory _data
   )
+    override
     public
     view
     returns (uint256)
@@ -212,12 +216,10 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     * @dev Get the total amount of votes from MACI,
     * verify the total amount of spent voice credits across all recipients,
     * and allow recipients to claim funds.
-    * @param _matchingPoolSize Total amount of matching funds transferred.
     * @param _totalSpent Total amount of spent voice credits.
     * @param _totalSpentSalt The salt.
     */
   function finalize(
-    uint256 _matchingPoolSize,
     uint256 _totalSpent,
     uint256 _totalSpentSalt
   )
@@ -234,13 +236,11 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     require(totalVotes > 0, 'FundingRound: No votes');
     bool verified = maci.verifySpentVoiceCredits(_totalSpent, _totalSpentSalt);
     require(verified, 'FundingRound: Incorrect total amount of spent voice credits');
-    // Initial size of the matching pool
-    matchingPoolSize = _matchingPoolSize;
+    totalSpent = _totalSpent;
     // Total amount of spent voice credits is the size of the pool of direct rewards.
     // Everything else, including unspent voice credits and downscaling error,
     // is considered a part of the matching pool
-    adjustedMatchingPoolSize = nativeToken.balanceOf(address(this)) - _totalSpent * voiceCreditFactor;
-    assert(adjustedMatchingPoolSize >= matchingPoolSize);
+    matchingPoolSize = nativeToken.balanceOf(address(this)) - totalSpent * voiceCreditFactor;
     isFinalized = true;
   }
 
@@ -269,7 +269,7 @@ contract FundingRound is Ownable, MACISharedObjs, SignUpGatekeeper, InitialVoice
     view
     returns (uint256)
   {
-    return adjustedMatchingPoolSize * _tallyResult / totalVotes + _spent * voiceCreditFactor;
+    return matchingPoolSize * _tallyResult / totalVotes + _spent * voiceCreditFactor;
   }
 
   /**
