@@ -1,8 +1,6 @@
-// SPDX-License-Identifier: GPL-3.0
+pragma solidity ^0.5.8;
 
-pragma solidity ^0.6.12;
-
-import '@openzeppelin/contracts/access/Ownable.sol';
+import '@openzeppelin/contracts/ownership/Ownable.sol';
 
 import './IRecipientRegistry.sol';
 
@@ -34,7 +32,6 @@ contract SimpleRecipientRegistry is Ownable, IRecipientRegistry {
     * @dev Set controller.
     */
   function setController()
-    override
     external
   {
     require(controller == address(0), 'RecipientRegistry: Controller is already set');
@@ -46,7 +43,6 @@ contract SimpleRecipientRegistry is Ownable, IRecipientRegistry {
     * @param _maxRecipients Maximum number of recipients.
     */
   function setMaxRecipients(uint256 _maxRecipients)
-    override
     external
   {
     require(msg.sender == controller, 'RecipientRegistry: Only controller can increase recipient limit');
@@ -110,7 +106,6 @@ contract SimpleRecipientRegistry is Ownable, IRecipientRegistry {
     uint256 _startBlock,
     uint256 _endBlock
   )
-    override
     external
     view
     returns (uint256)

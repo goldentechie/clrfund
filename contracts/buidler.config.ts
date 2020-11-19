@@ -42,7 +42,7 @@ const config: CustomBuidlerConfig = {
     tests: "tests"
   },
   solc: {
-    version: "0.6.12",
+    version: "0.5.17",
     optimizer: {
       enabled: true,
       runs: 20
