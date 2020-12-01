@@ -3,7 +3,12 @@
     <div v-for="item in cart" class="cart-item" :key="item.id">
       <div class="project">
         <img class="project-image" :src="item.imageUrl" :alt="item.name">
-        <div class="project-name">{{ item.name }}</div>
+        <router-link
+          class="project-name"
+          :to="{ name: 'project', params: { id: item.id }}"
+        >
+          {{ item.name }}
+        </router-link>
       </div>
       <form class="contribution-form">
         <input
@@ -158,13 +163,17 @@ export default class Cart extends Vue {
     )
   }
 
+  private clearCart() {
+    this.cart.slice().forEach((item) => {
+      this.$store.commit(REMOVE_CART_ITEM, item)
+    })
+  }
+
   private refreshCart() {
     const currentUser = this.$store.state.currentUser
     if (!currentUser) {
       // Clear the cart on log out / when not logged in
-      this.cart.slice().forEach((item) => {
-        this.$store.commit(REMOVE_CART_ITEM, item)
-      })
+      this.clearCart()
       return
     }
     const currentRound = this.$store.state.currentRound
@@ -179,6 +188,7 @@ export default class Cart extends Vue {
       CART_STORAGE_KEY,
     )
     if (serializedCart) {
+      this.clearCart()
       for (const item of JSON.parse(serializedCart)) {
         this.$store.commit(ADD_CART_ITEM, item)
       }
@@ -424,6 +434,7 @@ $project-image-size: 50px;
 
   .project-name {
     align-self: center;
+    color: $text-color;
     display: -webkit-box;
     -webkit-line-clamp: 3;
     -webkit-box-orient: vertical;
