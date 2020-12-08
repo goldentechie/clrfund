@@ -3,25 +3,9 @@
     <router-link class="content-heading" to="/">⟵ All projects</router-link>
     <div v-if="project" class="project-page">
       <img class="project-image" :src="project.imageUrl" :alt="project.name">
-      <h2 class="project-name">
-        <a
-          v-if="klerosCurateUrl"
-          :href="klerosCurateUrl"
-          target="_blank"
-          rel="noopener"
-        >{{ project.name }}</a>
-        <span v-else>{{ project.name }}</span>
-      </h2>
+      <h2 class="project-name">{{ project.name }}</h2>
       <button
-        v-if="hasRegisterBtn()"
-        class="btn register-btn"
-        :disabled="!canRegister()"
-        @click="register()"
-      >
-        Register
-      </button>
-      <button
-        v-if="hasContributeBtn() && !inCart"
+        v-if="!inCart"
         class="btn contribute-btn"
         :disabled="!canContribute()"
         @click="contribute()"
@@ -29,14 +13,14 @@
         Contribute
       </button>
       <button
-        v-if="hasContributeBtn() && inCart"
+        v-else
         class="btn btn-inactive in-cart"
       >
         <img src="@/assets/checkmark.svg" />
         <span>In cart</span>
       </button>
       <button
-        v-if="hasClaimBtn()"
+        v-if="allocatedAmount !== null && claimed !== null"
         class="btn claim-btn"
         :disabled="!canClaim()"
         @click="claim()"
@@ -60,13 +44,10 @@ import { FixedNumber } from 'ethers'
 
 import { getAllocatedAmount, isFundsClaimed } from '@/api/claims'
 import { DEFAULT_CONTRIBUTION_AMOUNT, CART_MAX_SIZE, CartItem } from '@/api/contributions'
-import { recipientRegistryType } from '@/api/core'
 import { Project, getProject } from '@/api/projects'
-import { TcrItemStatus } from '@/api/recipient-registry-kleros'
 import { RoundStatus } from '@/api/round'
 import { Tally } from '@/api/tally'
 import ClaimModal from '@/components/ClaimModal.vue'
-import KlerosGTCRAdapterModal from '@/components/KlerosGTCRAdapterModal.vue'
 import { ADD_CART_ITEM } from '@/store/mutation-types'
 
 @Component({
@@ -104,7 +85,7 @@ export default class ProjectView extends Vue {
       this.project = project
     } else {
       // Project not found
-      this.$router.push({ name: 'projects' })
+      this.$router.push({ name: 'home' })
       return
     }
     // Wait for tally to load and get claim status
@@ -113,13 +94,6 @@ export default class ProjectView extends Vue {
       this.checkAllocation,
     )
     this.checkAllocation(this.$store.state.tally)
-  }
-
-  get klerosCurateUrl(): string | null {
-    if (recipientRegistryType === 'kleros') {
-      return this.project?.extra?.tcrItemUrl || null
-    }
-    return null
   }
 
   get tokenSymbol(): string {
@@ -138,47 +112,10 @@ export default class ProjectView extends Vue {
     return index !== -1
   }
 
-  hasRegisterBtn(): boolean {
-    return (
-      recipientRegistryType === 'kleros' &&
-      this.project?.index === 0 &&
-      this.project?.extra.tcrItemStatus === TcrItemStatus.Registered
-    )
-  }
-
-  canRegister(): boolean {
-    return this.hasRegisterBtn() && this.$store.state.currentUser
-  }
-
-  register() {
-    this.$modal.show(
-      KlerosGTCRAdapterModal,
-      { project: this.project },
-      {
-        clickToClose: false,
-        height: 'auto',
-        width: 450,
-      },
-      {
-        closed: async () => {
-          this.project = await getProject(this.$route.params.id)
-        },
-      },
-    )
-  }
-
-  hasContributeBtn(): boolean {
-    return (
-      this.$store.state.currentRound &&
-      this.project !== null &&
-      this.project.index !== 0
-    )
-  }
-
   canContribute(): boolean {
     return (
-      this.hasContributeBtn() &&
       this.$store.state.currentUser &&
+      this.$store.state.currentRound &&
       this.project !== null &&
       !this.project.isRemoved &&
       this.$store.state.cart.length < CART_MAX_SIZE
@@ -192,21 +129,11 @@ export default class ProjectView extends Vue {
     })
   }
 
-  hasClaimBtn(): boolean {
+  canClaim(): boolean {
     const currentRound = this.$store.state.currentRound
     return (
       currentRound &&
       currentRound.status === RoundStatus.Finalized &&
-      this.project !== null &&
-      this.project.index !== 0 &&
-      this.allocatedAmount !== null &&
-      this.claimed !== null
-    )
-  }
-
-  canClaim(): boolean {
-    return (
-      this.hasClaimBtn() &&
       this.$store.state.currentUser &&
       this.claimed === false
     )
@@ -259,15 +186,10 @@ export default class ProjectView extends Vue {
   font-size: 40px;
   letter-spacing: -0.015em;
   margin: $content-space 0;
-
-  a {
-    color: $text-color;
-  }
 }
 
 .contribute-btn,
 .in-cart,
-.register-btn,
 .claim-btn {
   margin: 0 $content-space $content-space 0;
   width: 300px;

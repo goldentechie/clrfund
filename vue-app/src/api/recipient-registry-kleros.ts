@@ -1,54 +1,34 @@
-import { Contract, Event, Signer } from 'ethers'
-import { TransactionResponse } from '@ethersproject/abstract-provider'
+import { Contract, Event } from 'ethers'
 import { gtcrDecode } from '@kleros/gtcr-encoder'
 
 import { KlerosGTCR, KlerosGTCRAdapter } from './abi'
 import { provider, ipfsGatewayUrl } from './core'
 import { Project } from './projects'
 
-const KLEROS_CURATE_URL = 'https://curate.kleros.io/tcr/0x2E3B10aBf091cdc53cC892A50daBDb432e220398'
-
-export enum TcrItemStatus {
-  Absent = 0,
-  Registered = 1,
-  RegistrationRequested = 2,
-  ClearingRequested = 3,
-}
-
 interface TcrColumn {
   label: string;
   type: string;
 }
 
-async function getTcrColumns(tcr: Contract): Promise<TcrColumn[]> {
+async function getTcrColumns(address: string): Promise<TcrColumn[]> {
+  const tcr = new Contract(address, KlerosGTCR, provider)
   const metaEvidenceFilter = tcr.filters.MetaEvidence()
   const metaEvidenceEvents = await tcr.queryFilter(metaEvidenceFilter, 0)
-  // Take last event with even index
-  const regMetaEvidenceEvent = metaEvidenceEvents[metaEvidenceEvents.length - 2]
-  const ipfsPath = (regMetaEvidenceEvent.args as any)._evidence
+  const latestEvent = metaEvidenceEvents[metaEvidenceEvents.length - 1]
+  const ipfsPath = (latestEvent.args as any)._evidence
   const tcrDataResponse = await fetch(`${ipfsGatewayUrl}${ipfsPath}`)
   const tcrData = await tcrDataResponse.json()
   return tcrData.metadata.columns
 }
 
-function decodeTcrItemData(columns: TcrColumn[], data: any[]): {
-  name: string;
-  description: string;
-  imageUrl: string;
-} {
-  const decodedMetadata = gtcrDecode({ columns, values: data })
+function decodeRecipientAdded(event: Event, columns: TcrColumn[]): Project {
+  const args = event.args as any
+  const decodedMetadata = gtcrDecode({ columns, values: args._metadata })
   return {
+    id: args._tcrItemId,
     name: decodedMetadata[0] as string,
     description: decodedMetadata[3] as string,
     imageUrl: `${ipfsGatewayUrl}${decodedMetadata[2]}`,
-  }
-}
-
-function decodeRecipientAdded(event: Event, columns: TcrColumn[]): Project {
-  const args = event.args as any
-  return {
-    id: args._tcrItemId,
-    ...decodeTcrItemData(columns, args._metadata),
     index: args._index.toNumber(),
     isRemoved: false,
   }
@@ -61,8 +41,7 @@ export async function getProjects(
 ): Promise<Project[]> {
   const registry = new Contract(registryAddress, KlerosGTCRAdapter, provider)
   const tcrAddress = await registry.tcr()
-  const tcr = new Contract(tcrAddress, KlerosGTCR, provider)
-  const tcrColumns = await getTcrColumns(tcr)
+  const tcrColumns = await getTcrColumns(tcrAddress)
   const recipientAddedFilter = registry.filters.RecipientAdded()
   const recipientAddedEvents = await registry.queryFilter(recipientAddedFilter, 0, endBlock)
   const recipientRemovedFilter = registry.filters.RecipientRemoved()
@@ -99,29 +78,17 @@ export async function getProject(
 ): Promise<Project | null> {
   const registry = new Contract(registryAddress, KlerosGTCRAdapter, provider)
   const tcrAddress = await registry.tcr()
-  const tcr = new Contract(tcrAddress, KlerosGTCR, provider)
-  const tcrColumns = await getTcrColumns(tcr)
-  const [tcrItemData, tcrItemStatus] = await tcr.getItemInfo(recipientId)
-  if (tcrItemData === '0x') {
-    // Item is not in TCR
-    return null
-  }
-  const project: Project = {
-    id: recipientId,
-    ...decodeTcrItemData(tcrColumns, tcrItemData),
-    // Only unregistered project can have invalid index 0
-    index: 0,
-    isRemoved: false,
-    extra: {
-      tcrItemStatus: tcrItemStatus.toNumber(),
-      tcrItemUrl: `${KLEROS_CURATE_URL}/${recipientId}`,
-    },
-  }
+  const tcrColumns = await getTcrColumns(tcrAddress)
   const recipientAddedFilter = registry.filters.RecipientAdded(recipientId)
   const recipientAddedEvents = await registry.queryFilter(recipientAddedFilter, 0)
-  if (recipientAddedEvents.length !== 0) {
-    const recipientAddedEvent = recipientAddedEvents[0]
-    project.index = (recipientAddedEvent.args as any)._index
+  if (recipientAddedEvents.length !== 1) {
+    return null
+  }
+  let project
+  try {
+    project = decodeRecipientAdded(recipientAddedEvents[0], tcrColumns)
+  } catch {
+    return null
   }
   const recipientRemovedFilter = registry.filters.RecipientRemoved(recipientId)
   const recipientRemovedEvents = await registry.queryFilter(recipientRemovedFilter, 0)
@@ -129,16 +96,6 @@ export async function getProject(
     project.isRemoved = true
   }
   return project
-}
-
-export async function registerProject(
-  registryAddress: string,
-  recipientId: string,
-  signer: Signer,
-): Promise<TransactionResponse> {
-  const registry = new Contract(registryAddress, KlerosGTCRAdapter, signer)
-  const transaction = await registry.addRecipient(recipientId)
-  return transaction
 }
 
 export default { getProjects, getProject }
