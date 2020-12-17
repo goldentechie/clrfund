@@ -1,10 +1,11 @@
-import { ethers, waffle } from 'hardhat'
+import { ethers, waffle } from '@nomiclabs/buidler';
 import { use, expect } from 'chai';
 import { solidity } from 'ethereum-waffle'
 import { Contract } from 'ethers';
 import { genRandomSalt } from 'maci-crypto'
 import { Keypair } from 'maci-domainobjs';
 
+import MACIArtifact from '../build/contracts/MACI.json'
 import { ZERO_ADDRESS, UNIT } from '../utils/constants'
 import { getGasUsage, getEventArg } from '../utils/contracts'
 import { deployMaciFactory } from '../utils/deployment'
@@ -25,7 +26,7 @@ describe('Funding Round Factory', () => {
   const coordinatorPubKey = (new Keypair()).pubKey.asContractParam()
 
   beforeEach(async () => {
-    maciFactory = await deployMaciFactory(deployer)
+    maciFactory = await deployMaciFactory(deployer);
     maciParameters = await MaciParameters.read(maciFactory)
 
     const FundingRoundFactory = await ethers.getContractFactory('FundingRoundFactory', deployer)
@@ -210,7 +211,7 @@ describe('Funding Round Factory', () => {
         '_maci',
       )
       expect(await fundingRound.maci()).to.equal(maciAddress)
-      const maci = await ethers.getContractAt('MACI', maciAddress)
+      const maci = await ethers.getContractAt(MACIArtifact.abi, maciAddress)
       const roundCoordinatorPubKey = await maci.coordinatorPubKey()
       expect(roundCoordinatorPubKey.x).to.equal(coordinatorPubKey.x)
       expect(roundCoordinatorPubKey.y).to.equal(coordinatorPubKey.y)

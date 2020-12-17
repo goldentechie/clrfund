@@ -1,9 +1,11 @@
-import { ethers } from 'hardhat'
-import { Libraries } from 'hardhat/types/runtime'
+import bre from '@nomiclabs/buidler'
 import { Signer, Contract } from 'ethers'
 import { link } from 'ethereum-waffle'
 
 import { MaciParameters } from './maci'
+import MACIFactoryArtifact from '../build/contracts/MACIFactory.json'
+
+const ethers = (bre as any).ethers
 
 export function linkBytecode(
   bytecode: string,
@@ -31,21 +33,19 @@ const CIRCUITS: {[name: string]: any} = {
 }
 
 export async function deployMaciFactory(account: Signer, circuit = 'test'): Promise<Contract> {
-  const PoseidonT3 = await ethers.getContractFactory(':PoseidonT3', account)
+  const PoseidonT3 = await ethers.getContractFactory('PoseidonT3', account)
   const poseidonT3 = await PoseidonT3.deploy()
-  const PoseidonT6 = await ethers.getContractFactory(':PoseidonT6', account)
+  const PoseidonT6 = await ethers.getContractFactory('PoseidonT6', account)
   const poseidonT6 = await PoseidonT6.deploy()
-  const maciLibraries: Libraries = {
+
+  const linkedBytecode = linkBytecode(MACIFactoryArtifact.bytecode, {
     'maci-contracts/sol/Poseidon.sol:PoseidonT3': poseidonT3.address,
     'maci-contracts/sol/Poseidon.sol:PoseidonT6': poseidonT6.address,
-  }
-
+  })
   const MACIFactory = await ethers.getContractFactory(
-    'MACIFactory',
-    {
-      signer: account,
-      libraries: maciLibraries,
-    },
+    MACIFactoryArtifact.abi,
+    linkedBytecode,
+    account,
   )
 
   const BatchUstVerifier = await ethers.getContractFactory(CIRCUITS[circuit].batchUstVerifier, account)

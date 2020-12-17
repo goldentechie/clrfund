@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { ethers } from 'hardhat'
+import { ethers } from '@nomiclabs/buidler';
 import { BigNumber } from 'ethers'
 import { PrivKey, PubKey, Keypair } from 'maci-domainobjs'
 
