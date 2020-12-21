@@ -1,4 +1,4 @@
-import { ethers, waffle } from 'hardhat'
+import { ethers, waffle } from '@nomiclabs/buidler'
 import { use, expect } from 'chai'
 import { solidity } from 'ethereum-waffle'
 import { Contract } from 'ethers'
