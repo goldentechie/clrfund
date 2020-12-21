@@ -22,7 +22,6 @@
         <router-link to="/about">About</router-link>
         <a href="https://blog.clr.fund" target=_blank>Blog</a>
         <a href="https://forum.clr.fund" target=_blank>Forum</a>
-        <a href="https://github.com/clrfund/monorepo/" target="_blank" rel="noopener">GitHub</a>
       </div>
     </div>
     <div id="content">

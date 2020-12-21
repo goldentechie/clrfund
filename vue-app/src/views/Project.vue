@@ -8,11 +8,7 @@
     </a>
     <div v-if="project" class="project-page">
       <img class="project-image" :src="project.imageUrl" :alt="project.name">
-      <h2
-        class="project-name"
-        :title="project.address"
-        :data-index="project.index"
-      >
+      <h2 class="project-name" :title="project.address">
         <a
           v-if="klerosCurateUrl"
           :href="klerosCurateUrl"
@@ -173,7 +169,11 @@ export default class ProjectView extends Vue {
     this.$modal.show(
       KlerosGTCRAdapterModal,
       { project: this.project },
-      { },
+      {
+        clickToClose: false,
+        height: 'auto',
+        width: 450,
+      },
       {
         closed: async () => {
           this.project = await getProject(this.$route.params.id)
@@ -237,7 +237,11 @@ export default class ProjectView extends Vue {
     this.$modal.show(
       ClaimModal,
       { project: this.project },
-      { },
+      {
+        clickToClose: false,
+        height: 'auto',
+        width: 450,
+      },
       {
         closed: () => {
           this.checkAllocation(this.$store.state.tally)
