@@ -2,7 +2,7 @@ import { ethers } from 'ethers'
 
 import { FundingRoundFactory } from './abi'
 
-export const provider = new ethers.providers.StaticJsonRpcProvider(
+export const provider = new ethers.providers.JsonRpcProvider(
   process.env.VUE_APP_ETHEREUM_API_URL,
 )
 export const blockExplorer = process.env.VUE_APP_BLOCK_EXPLORER

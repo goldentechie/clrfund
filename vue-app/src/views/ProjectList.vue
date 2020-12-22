@@ -58,23 +58,6 @@ import ProjectListItem from '@/components/ProjectListItem.vue'
 import { LOAD_ROUND_INFO } from '@/store/action-types'
 import { SET_CURRENT_ROUND_ADDRESS } from '@/store/mutation-types'
 
-const SHUFFLE_RANDOM_SEED = Math.random()
-
-function random(seed: number, i: number): number {
-  // Like Math.random() but seedable
-  const s = Math.sin(seed * i) * 10000
-  return s - Math.floor(s)
-}
-
-function shuffleArray(array: any[]) {
-  // Shuffle array using the Durstenfeld algo
-  // More info: https://stackoverflow.com/a/12646864/1868395
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(random(SHUFFLE_RANDOM_SEED, i) * (i + 1))
-    ;[array[i], array[j]] = [array[j], array[i]]
-  }
-}
-
 @Component({
   name: 'project-list',
   metaInfo: { title: 'Projects' },
@@ -115,15 +98,10 @@ export default class ProjectList extends Vue {
   }
 
   private async loadProjects() {
-    const projects = await getProjects(
+    this.projects = await getProjects(
       this.currentRound?.startBlock,
       this.currentRound?.endBlock,
     )
-    const filtered = projects.filter(project => {
-      return (!project.isHidden && !project.isLocked)
-    })
-    shuffleArray(filtered)
-    this.projects = filtered
   }
 
   get contribution(): FixedNumber {

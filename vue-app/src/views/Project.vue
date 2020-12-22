@@ -8,11 +8,7 @@
     </a>
     <div v-if="project" class="project-page">
       <img class="project-image" :src="project.imageUrl" :alt="project.name">
-      <h2
-        class="project-name"
-        :title="project.address"
-        :data-index="project.index"
-      >
+      <h2 class="project-name" :title="project.address">
         <a
           v-if="klerosCurateUrl"
           :href="klerosCurateUrl"
@@ -110,12 +106,12 @@ export default class ProjectView extends Vue {
 
   async created() {
     const project = await getProject(this.$route.params.id)
-    if (project === null || project.isHidden) {
+    if (project !== null) {
+      this.project = project
+    } else {
       // Project not found
       this.$router.push({ name: 'projects' })
       return
-    } else {
-      this.project = project
     }
     // Wait for tally to load and get claim status
     this.$store.watch(
@@ -173,7 +169,11 @@ export default class ProjectView extends Vue {
     this.$modal.show(
       KlerosGTCRAdapterModal,
       { project: this.project },
-      { },
+      {
+        clickToClose: false,
+        height: 'auto',
+        width: 450,
+      },
       {
         closed: async () => {
           this.project = await getProject(this.$route.params.id)
@@ -196,7 +196,7 @@ export default class ProjectView extends Vue {
       this.$store.state.currentUser &&
       DateTime.local() < this.$store.state.currentRound.votingDeadline &&
       this.project !== null &&
-      !this.project.isLocked &&
+      !this.project.isRemoved &&
       this.$store.state.cart.length < CART_MAX_SIZE
     )
   }
@@ -237,7 +237,11 @@ export default class ProjectView extends Vue {
     this.$modal.show(
       ClaimModal,
       { project: this.project },
-      { },
+      {
+        clickToClose: false,
+        height: 'auto',
+        width: 450,
+      },
       {
         closed: () => {
           this.checkAllocation(this.$store.state.tally)
