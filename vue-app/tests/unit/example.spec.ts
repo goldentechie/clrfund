@@ -9,7 +9,6 @@ describe('ProjectListItem.vue', () => {
       mocks: {
         $store: { state: { cart: [] } },
       },
-      stubs: ['router-link'],
     })
     expect(wrapper.text()).to.include('')
   })
