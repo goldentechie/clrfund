@@ -88,6 +88,6 @@ export default class ReallocationModal extends Vue {
 @import '../styles/vars';
 
 .close-btn {
-  margin-top: $modal-space;
+  margin-top: 20px;
 }
 </style>

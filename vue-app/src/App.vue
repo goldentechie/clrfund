@@ -274,7 +274,7 @@ a {
 
 .modal-body {
   background-color: $bg-light-color;
-  padding: $modal-space;
+  padding: 20px;
   text-align: center;
 }
 
@@ -282,7 +282,7 @@ a {
   display: block;
   width: 40px;
   height: 40px;
-  margin: $modal-space auto;
+  margin: 20px auto;
 }
 
 .loader:after {
