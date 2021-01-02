@@ -26,7 +26,16 @@
       </div>
       <div class="round-info-item">
         <div class="round-info-title">Matching Pool:</div>
-        <div class="round-info-value">{{ currentRound.matchingPool | formatAmount }} {{ currentRound.nativeTokenSymbol }}</div>
+        <div class="round-info-value">
+          {{ currentRound.matchingPool | formatAmount }} {{ currentRound.nativeTokenSymbol }}
+          <a
+            @click="addMatchingFunds()"
+            class="add-matching-funds-btn"
+            title="Add matching funds"
+          >
+            <img src="@/assets/add.svg" >
+          </a>
+        </div>
       </div>
       <div class="round-info-item">
         <div class="round-info-title">Contributions:</div>
@@ -37,11 +46,20 @@
         <div class="round-info-value">{{ contribution | formatAmount }} {{ currentRound.nativeTokenSymbol }}</div>
       </div>
     </div>
+    <div v-if="projects.length > 0" class="project-search">
+      <input
+        v-model="search"
+        class="input"
+        name="search"
+        placeholder="Search projects..."
+        autocomplete="off"
+      >
+    </div>
     <div class="project-list">
       <project-list-item
-        v-for="project in projects"
-        v-bind:project="project"
-        v-bind:key="project.id"
+        v-for="project in filteredProjects"
+        :project="project"
+        :key="project.id"
       >
       </project-list-item>
     </div>
@@ -57,6 +75,7 @@ import { RoundInfo } from '@/api/round'
 import { Project, getProjects } from '@/api/projects'
 
 import ProjectListItem from '@/components/ProjectListItem.vue'
+import MatchingFundsModal from '@/components/MatchingFundsModal.vue'
 import { LOAD_ROUND_INFO } from '@/store/action-types'
 import { SET_CURRENT_ROUND_ADDRESS } from '@/store/mutation-types'
 
@@ -87,6 +106,7 @@ function shuffleArray(array: any[]) {
 export default class ProjectList extends Vue {
 
   projects: Project[] = []
+  search = ''
 
   roundWatcherStop?: Function
 
@@ -121,11 +141,11 @@ export default class ProjectList extends Vue {
       this.currentRound?.startBlock,
       this.currentRound?.endBlock,
     )
-    const filtered = projects.filter(project => {
+    const visibleProjects = projects.filter(project => {
       return (!project.isHidden && !project.isLocked)
     })
-    shuffleArray(filtered)
-    this.projects = filtered
+    shuffleArray(visibleProjects)
+    this.projects = visibleProjects
   }
 
   get contribution(): FixedNumber {
@@ -135,6 +155,31 @@ export default class ProjectList extends Vue {
       return FixedNumber.from(0)
     }
     return FixedNumber.fromValue(contribution, decimals)
+  }
+
+  addMatchingFunds(): void {
+    if (!this.$store.state.currentUser) {
+      return
+    }
+    this.$modal.show(
+      MatchingFundsModal,
+      { },
+      { },
+      {
+        closed: () => {
+          this.$store.dispatch(LOAD_ROUND_INFO)
+        },
+      },
+    )
+  }
+
+  get filteredProjects(): Project[] {
+    return this.projects.filter((project: Project) => {
+      if (!this.search) {
+        return true
+      }
+      return project.name.toLowerCase().includes(this.search.toLowerCase())
+    })
   }
 }
 </script>
@@ -146,7 +191,6 @@ export default class ProjectList extends Vue {
   display: flex;
   flex-wrap: wrap;
   font-size: 12px;
-  margin-bottom: $content-space;
 }
 
 .round-info-item {
@@ -173,6 +217,30 @@ export default class ProjectList extends Vue {
 .round-info-value {
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.add-matching-funds-btn {
+  display: inline-block;
+  line-height: 1;
+  margin-left: 5px;
+
+  img {
+    height: 1em;
+    vertical-align: bottom;
+  }
+}
+
+.project-search {
+  margin: 20px 0;
+
+  input {
+    background-color: $bg-secondary-color;
+    border: none;
+    border-radius: 20px;
+    font-size: 14px;
+    padding: 2px 10px;
+    width: 100%;
+  }
 }
 
 .project-list {
