@@ -54,6 +54,14 @@
         </a>
       </div>
       <button
+        v-if="canWithdrawContribution()"
+        class="btn submit-btn"
+        @click="withdrawContribution()"
+      >
+        Withdraw {{ formatAmount(contribution) }} {{ tokenSymbol }}
+      </button>
+      <button
+        v-else
         class="btn submit-btn"
         :disabled="errorMessage !== null"
         @click="submit()"
@@ -83,6 +91,7 @@ import { Keypair, PrivKey } from 'maci-domainobjs'
 import BrightIdModal from '@/components/BrightIdModal.vue'
 import ContributionModal from '@/components/ContributionModal.vue'
 import ReallocationModal from '@/components/ReallocationModal.vue'
+import WithdrawalModal from '@/components/WithdrawalModal.vue'
 
 import { MAX_CONTRIBUTION_AMOUNT, MAX_CART_SIZE, CartItem, Contributor } from '@/api/contributions'
 import { userRegistryType } from '@/api/core'
@@ -207,10 +216,6 @@ export default class Cart extends Vue {
     if (serializedCart) {
       this.clearCart()
       for (const item of JSON.parse(serializedCart)) {
-        // Workaround for https://github.com/clrfund/monorepo/issues/244
-        if (typeof item.index !== 'number') {
-          item.index = 23
-        }
         this.$store.commit(ADD_CART_ITEM, item)
       }
     }
@@ -429,6 +434,17 @@ export default class Cart extends Vue {
       this.contribution.isZero() ? ContributionModal : ReallocationModal,
       { votes },
       { width: 500 },
+    )
+  }
+
+  canWithdrawContribution(): boolean {
+    const { status } = this.$store.state.currentRound
+    return status === RoundStatus.Cancelled && !this.contribution.isZero()
+  }
+
+  withdrawContribution(): void {
+    this.$modal.show(
+      WithdrawalModal,
     )
   }
 }
