@@ -1,12 +1,7 @@
-import { AES, MD5, SHA256, enc } from 'crypto-js'
+import { AES, SHA256, enc } from 'crypto-js'
 
-export function md5(data: string): string {
-  const hash = MD5(data)
-  return hash.toString(enc.Hex)
-}
-
-export function sha256(data: string): string {
-  const hash = SHA256(data)
+export function sha256(seed: string): string {
+  const hash = SHA256(seed)
   return hash.toString(enc.Hex)
 }
 

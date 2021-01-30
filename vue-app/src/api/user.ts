@@ -4,9 +4,7 @@ import { BigNumber, Contract } from 'ethers'
 import { Web3Provider } from '@ethersproject/providers'
 
 import { UserRegistry, ERC20 } from './abi'
-import { factory, ipfsGatewayUrl, provider } from './core'
-
-export const LOGIN_MESSAGE = `Sign this message to access clr.fund at ${factory.address.toLowerCase()}.`
+import { ipfsGatewayUrl, provider } from './core'
 
 export interface User {
   walletAddress: string;

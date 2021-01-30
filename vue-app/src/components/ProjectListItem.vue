@@ -51,7 +51,6 @@ import { recipientRegistryType } from '@/api/core'
 import { Project, getProject } from '@/api/projects'
 import { TcrItemStatus } from '@/api/recipient-registry-kleros'
 import KlerosGTCRAdapterModal from '@/components/KlerosGTCRAdapterModal.vue'
-import { SAVE_CART } from '@/store/action-types'
 import { ADD_CART_ITEM } from '@/store/mutation-types'
 
 @Component
@@ -115,7 +114,6 @@ export default class ProjectListItem extends Vue {
       amount: DEFAULT_CONTRIBUTION_AMOUNT.toString(),
       isCleared: false,
     })
-    this.$store.dispatch(SAVE_CART)
   }
 }
 </script>

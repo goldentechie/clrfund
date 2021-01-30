@@ -6,30 +6,14 @@ import {
   MAX_CART_SIZE,
   CartItem,
   Contributor,
-  getCartStorageKey,
-  serializeCart,
-  deserializeCart,
-  getContributorStorageKey,
-  serializeContributorData,
-  deserializeContributorData,
   getContributionAmount,
 } from '@/api/contributions'
-import { loginUser, logoutUser } from '@/api/gun'
 import { RoundInfo, RoundStatus, getRoundInfo } from '@/api/round'
-import { storage } from '@/api/storage'
 import { Tally, getTally } from '@/api/tally'
 import { User, isVerifiedUser, getTokenBalance } from '@/api/user'
 import {
   LOAD_ROUND_INFO,
   LOAD_USER_INFO,
-  SAVE_CART,
-  LOAD_CART,
-  UNWATCH_CART,
-  SAVE_CONTRIBUTOR_DATA,
-  LOAD_CONTRIBUTOR_DATA,
-  UNWATCH_CONTRIBUTOR_DATA,
-  LOGIN_USER,
-  LOGOUT_USER,
 } from './action-types'
 import {
   SET_CURRENT_USER,
@@ -41,7 +25,6 @@ import {
   ADD_CART_ITEM,
   UPDATE_CART_ITEM,
   REMOVE_CART_ITEM,
-  CLEAR_CART,
 } from './mutation-types'
 
 Vue.use(Vuex)
@@ -126,7 +109,10 @@ export const mutations = {
     if (itemIndex === -1) {
       throw new Error('item is not in the cart')
     } else if (state.contribution === null) {
-      throw new Error('invalid operation')
+      // TODO: the contribution is null when the cart is being cleared after logout
+      // so this operation should be allowed. Looking for a better solution.
+      // throw new Error('invalid operation')
+      state.cart.splice(itemIndex, 1)
     } else if (state.contribution.isZero() || state.cart.length > MAX_CART_SIZE) {
       state.cart.splice(itemIndex, 1)
     } else {
@@ -134,9 +120,6 @@ export const mutations = {
       // so we just clear contribution amount and mark item with a flag
       Vue.set(state.cart, itemIndex, { ...removedItem, amount: '0', isCleared: true })
     }
-  },
-  [CLEAR_CART](state) {
-    state.cart = []
   },
 }
 
@@ -181,78 +164,6 @@ const actions = {
         balance,
       })
     }
-  },
-  [SAVE_CART]({ state }) {
-    const serializedCart = serializeCart(state.cart)
-    storage.setItem(
-      state.currentUser.walletAddress,
-      state.currentUser.encryptionKey,
-      getCartStorageKey(state.currentRound.fundingRoundAddress),
-      serializedCart,
-    )
-  },
-  [LOAD_CART]({ commit, state }) {
-    storage.watchItem(
-      state.currentUser.walletAddress,
-      state.currentUser.encryptionKey,
-      getCartStorageKey(state.currentRound.fundingRoundAddress),
-      (data: string | null) => {
-        const cart = deserializeCart(data)
-        commit(CLEAR_CART)
-        for (const item of cart) {
-          commit(ADD_CART_ITEM, item)
-        }
-      },
-    )
-  },
-  [UNWATCH_CART]({ state }) {
-    if (!state.currentUser || !state.currentRound) {
-      return
-    }
-    storage.unwatchItem(
-      state.currentUser.walletAddress,
-      getCartStorageKey(state.currentRound.fundingRoundAddress),
-    )
-  },
-  [SAVE_CONTRIBUTOR_DATA]({ state }) {
-    const serializedData = serializeContributorData(state.contributor)
-    storage.setItem(
-      state.currentUser.walletAddress,
-      state.currentUser.encryptionKey,
-      getContributorStorageKey(state.currentRound.fundingRoundAddress),
-      serializedData,
-    )
-  },
-  [LOAD_CONTRIBUTOR_DATA]({ commit, state }) {
-    storage.watchItem(
-      state.currentUser.walletAddress,
-      state.currentUser.encryptionKey,
-      getContributorStorageKey(state.currentRound.fundingRoundAddress),
-      (data: string | null) => {
-        const contributor = deserializeContributorData(data)
-        if (contributor) {
-          commit(SET_CONTRIBUTOR, contributor)
-        }
-      },
-    )
-  },
-  [UNWATCH_CONTRIBUTOR_DATA]({ state }) {
-    if (!state.currentUser || !state.currentRound) {
-      return
-    }
-    storage.unwatchItem(
-      state.currentUser.walletAddress,
-      getContributorStorageKey(state.currentRound.fundingRoundAddress),
-    )
-  },
-  async [LOGIN_USER]({ state }) {
-    await loginUser(
-      state.currentUser.walletAddress,
-      state.currentUser.encryptionKey,
-    )
-  },
-  [LOGOUT_USER]() {
-    logoutUser()
   },
 }
 
